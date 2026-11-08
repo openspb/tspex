@@ -1,0 +1,11 @@
+# Mix
+/_build/
+/_build_*/
+/cover/
+/deps/
+/doc/
+/.fetch
+erl_crash.dump
+*.ez
+tspex-*.tar
+/tmp/
