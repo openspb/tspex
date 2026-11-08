@@ -1,0 +1,115 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Elixir ${{ matrix.elixir }} / OTP ${{ matrix.otp }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Oldest supported pair, then the newest OTP of each Elixir line.
+          - { elixir: "1.16", otp: "26" }
+          - { elixir: "1.18", otp: "27" }
+          - { elixir: "1.20", otp: "28" }
+          - { elixir: "1.20", otp: "29" }
+    env:
+      MIX_ENV: test
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: erlef/setup-beam@v1
+        id: beam
+        with:
+          elixir-version: ${{ matrix.elixir }}
+          otp-version: ${{ matrix.otp }}
+
+      - uses: actions/cache@v6
+        with:
+          path: |
+            deps
+            _build
+          key: test-${{ steps.beam.outputs.otp-version }}-${{ steps.beam.outputs.elixir-version }}-${{ hashFiles('mix.lock') }}
+
+      - run: mix deps.get
+      - run: mix compile --warnings-as-errors
+      # The interop tests depend on the tools of the system; their own job
+      # below pins them.
+      - run: mix test --exclude interop
+        env:
+          FUZZ_ROUNDS: "1000"
+
+  # Other implementations read what tspex writes, and write what it reads:
+  # the OpenSSL 3 of the system (requests, responses and a time-stamp
+  # authority) and the jarsigner of a JDK (a time-stamp on a signed JAR).
+  interop:
+    name: Interop with OpenSSL and Java
+    runs-on: ubuntu-24.04
+    env:
+      MIX_ENV: test
+      TSPEX_REQUIRE_INTEROP: openssl,jarsigner
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: erlef/setup-beam@v1
+        id: beam
+        with:
+          elixir-version: "1.20"
+          otp-version: "29"
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: actions/cache@v6
+        with:
+          path: |
+            deps
+            _build
+          key: interop-${{ steps.beam.outputs.otp-version }}-${{ steps.beam.outputs.elixir-version }}-${{ hashFiles('mix.lock') }}
+
+      - run: |
+          openssl version
+          jarsigner -version
+      - run: mix deps.get
+      - run: mix test --only interop
+
+  lint:
+    name: Format, Credo, Dialyzer, docs
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: erlef/setup-beam@v1
+        id: beam
+        with:
+          elixir-version: "1.20"
+          otp-version: "29"
+
+      - uses: actions/cache@v6
+        with:
+          path: |
+            deps
+            _build
+          key: lint-${{ steps.beam.outputs.otp-version }}-${{ steps.beam.outputs.elixir-version }}-${{ hashFiles('mix.lock') }}
+
+      - run: mix deps.get
+      - run: mix deps.unlock --check-unused
+      - run: mix format --check-formatted
+      - run: mix compile --warnings-as-errors
+      - run: mix credo --strict
+      - run: mix dialyzer --format github
+      - run: mix docs --warnings-as-errors
