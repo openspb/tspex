@@ -129,7 +129,9 @@ defmodule Tspex.TestFuzz do
   end
 
   defp at_position(input, position, {fun, values, accept}) do
-    <<head::binary-size(position), byte, tail::binary>> = input
+    head = binary_part(input, 0, position)
+    byte = :binary.at(input, position)
+    tail = binary_part(input, position + 1, byte_size(input) - position - 1)
 
     for value <- values, value != byte, copy = <<head::binary, value, tail::binary>> do
       {position, value, run(fn -> fun.(copy) end, accept)}

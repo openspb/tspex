@@ -384,9 +384,8 @@ defmodule Tspex.TestTSA do
 
   @doc "Flips the last bit of the token, which is in the signature."
   def flip_signature(token) do
-    size = byte_size(token)
-    <<head::binary-size(size - 1), last>> = token
-    <<head::binary, Bitwise.bxor(last, 1)>>
+    head = binary_part(token, 0, byte_size(token) - 1)
+    <<head::binary, Bitwise.bxor(:binary.last(token), 1)>>
   end
 
   @doc """
