@@ -177,6 +177,27 @@ every issuer in the path. For OCSP, or for CRLs by distribution point, the
 OTP has `:public_key.pkix_crls_validate/3` and `:public_key.pkix_ocsp_validate/5`,
 and the function you give can call them.
 
+### The CRLs inside a `TimeStampedData`
+
+In a chain of `Tspex.TimeStampedData`, the element before each new token may
+carry a CRL that vouches for the TSA of that element, made when the next token
+was added. `Tspex.TimeStampedData.verify/2` returns them in `crls` and does not
+judge them. The recipe does, as of the time the next token was issued, which
+is what `now` is for:
+
+```elixir
+{:ok, result} = Tspex.TimeStampedData.verify(der, trust: roots)
+issued = result.stamps |> tl() |> Enum.map(& &1.info.gen_time)
+
+for {stamp, crl, issued_at} <- Enum.zip([result.stamps, result.crls, issued]), crl do
+  MyApp.TsaRevocation.check([crl], issued_at).(stamp.signer.path, stamp.info.gen_time)
+end
+```
+
+Each result is `:ok` or `{:error, reason}`. The CRL has to cover every issuer of
+the path of that token, so with an intermediate CA the element needs more than
+one, and the recipe says `:no_crl` for the one it does not find.
+
 ## Checks, in order
 
 Size and form; status and `failInfo`; the token; the `SignedData` and the

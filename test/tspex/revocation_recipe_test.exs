@@ -4,7 +4,7 @@ defmodule Tspex.RevocationRecipeTest do
   # text cannot say something the code does not do.
   use Tspex.VerifyCase, async: false
 
-  alias Tspex.{TestPKI, TestTSA}
+  alias Tspex.{TestPKI, TestTSA, TimeStampedData}
 
   @guide Path.expand("../../guides/verification.md", __DIR__)
   @serial 424_242
@@ -31,6 +31,14 @@ defmodule Tspex.RevocationRecipeTest do
   defp recipe do
     guide = File.read!(@guide)
     [_, after_heading] = String.split(guide, "## A revocation check from CRLs you hold", parts: 2)
+    [_, code | _] = Regex.run(~r/```elixir\n(.*?)```/s, after_heading)
+    code
+  end
+
+  # The block after the heading of the CRLs inside a TimeStampedData.
+  defp tsd_snippet do
+    guide = File.read!(@guide)
+    [_, after_heading] = String.split(guide, "### The CRLs inside a `TimeStampedData`", parts: 2)
     [_, code | _] = Regex.run(~r/```elixir\n(.*?)```/s, after_heading)
     code
   end
@@ -145,5 +153,97 @@ defmodule Tspex.RevocationRecipeTest do
                trust: TestTSA.trust(tsa),
                revocation: recipe.check(stale, earlier)
              )
+  end
+
+  describe "the CRLs of a TimeStampedData" do
+    setup %{recipe: _recipe} do
+      # a TSA directly under the root, so that one CRL covers its path
+      tsa =
+        TestTSA.new(tag: :tsd_revocation, root_tag: :tsd_revocation_root, cert: [serial: 31_337])
+
+      %{flat: tsa}
+    end
+
+    # Two tokens, the CRL in the first element, as the guide describes.
+    defp chain_with_crl(tsa, crl, first_at, second_at) do
+      content = "document"
+      {:ok, imprint} = TimeStampedData.imprint(content)
+
+      {:ok, tsd} =
+        TimeStampedData.new(
+          content,
+          TestTSA.token(tsa, Tspex.request!(imprint), gen_time: first_at),
+          trust: TestTSA.trust(tsa)
+        )
+
+      {:ok, next} = TimeStampedData.extension_imprint(tsd, crl: crl)
+
+      {:ok, tsd} =
+        TimeStampedData.extend(
+          tsd,
+          TestTSA.token(tsa, Tspex.request!(next), gen_time: second_at),
+          crl: crl,
+          trust: TestTSA.trust(tsa)
+        )
+
+      TimeStampedData.encode(tsd)
+    end
+
+    defp run_snippet(der, tsa) do
+      {results, _} = Code.eval_string(tsd_snippet(), der: der, roots: TestTSA.trust(tsa))
+      results
+    end
+
+    test "a CRL that does not list the TSA passes, as of the second token", %{flat: tsa} do
+      first_at = hours_ago(5)
+      second_at = hours_ago(4)
+
+      crl =
+        TestPKI.crl(tsa.root, tsa.root_key, this_update: hours_ago(6), next_update: hours_ago(3))
+
+      der = chain_with_crl(tsa, crl, first_at, second_at)
+      # the CRL is out of date today, and good when the second token was made
+      assert run_snippet(der, tsa) == [:ok]
+    end
+
+    test "a revocation for key compromise is found", %{flat: tsa} do
+      crl =
+        TestPKI.crl(tsa.root, tsa.root_key,
+          this_update: hours_ago(6),
+          revoked: [{31_337, hours_ago(4), 1}]
+        )
+
+      der = chain_with_crl(tsa, crl, hours_ago(5), hours_ago(4))
+      assert run_snippet(der, tsa) == [{:error, :revoked}]
+    end
+
+    test "another reason counts from its date: after the first token it is fine", %{flat: tsa} do
+      crl =
+        TestPKI.crl(tsa.root, tsa.root_key,
+          this_update: hours_ago(6),
+          revoked: [{31_337, hours_ago(3), 5}]
+        )
+
+      der = chain_with_crl(tsa, crl, hours_ago(5), hours_ago(4))
+      assert run_snippet(der, tsa) == [:ok]
+    end
+
+    test "a CRL made after the second token is not current at that time", %{flat: tsa} do
+      crl = TestPKI.crl(tsa.root, tsa.root_key, this_update: hours_ago(1))
+      der = chain_with_crl(tsa, crl, hours_ago(5), hours_ago(4))
+      assert run_snippet(der, tsa) == [{:error, :crl_not_yet_valid}]
+    end
+
+    test "an element with no CRL is skipped", %{flat: tsa} do
+      content = "document"
+      {:ok, imprint} = TimeStampedData.imprint(content)
+      first = TestTSA.token(tsa, Tspex.request!(imprint), gen_time: hours_ago(5))
+      {:ok, tsd} = TimeStampedData.new(content, first, trust: TestTSA.trust(tsa))
+      {:ok, next} = TimeStampedData.extension_imprint(tsd)
+      second = TestTSA.token(tsa, Tspex.request!(next), gen_time: hours_ago(4))
+      {:ok, tsd} = TimeStampedData.extend(tsd, second, trust: TestTSA.trust(tsa))
+
+      assert run_snippet(TimeStampedData.encode(tsd), tsa) == []
+    end
   end
 end

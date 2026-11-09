@@ -96,9 +96,11 @@ signature operations.
 * For a `TimeStampedData` (experimental): that the choice of what the second
   and later tokens cover is the one other implementations make. RFC 5544 does
   not say, and this library reads it as the whole previous element. It does not
-  check the `crl` of an element (`verify/2` returns it), and it does not check
-  that the time grows along the chain. The evidence of an archive time-stamp
-  (`ersEvidence`) and other evidence are read and written but not verified.
+  check the `crl` of an element (`verify/2` returns it, and the guide shows how
+  to check it), and it refuses a chain whose time goes back only if you give
+  `:max_time_back` (`ordered` in the result says it either way). The evidence
+  of an archive time-stamp (`ersEvidence`) and other evidence are read and
+  written but not verified.
 * Unsigned attributes are not protected by the signature. A time-stamp in
   one is verified against the signature value it claims to cover, and a
   stamp that is not about that signature is `:imprint_mismatch`; anyone can
