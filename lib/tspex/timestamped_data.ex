@@ -124,6 +124,17 @@ defmodule Tspex.TimeStampedData do
     * `:hash_protected` - `true` puts the `MetaData` under the first token
       (`false`, the default). It needs a `MetaData`.
     * `:allow_sha1` - `false`.
+
+  With `hash_protected: true` the imprint covers the file name too, so it is
+  not the hash of the content alone:
+
+      iex> alias Tspex.TimeStampedData
+      iex> {:ok, {:digest, :sha256, plain}} = TimeStampedData.imprint("hello")
+      iex> Base.encode16(plain, case: :lower)
+      "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+      iex> {:ok, bound} = TimeStampedData.imprint("hello", file_name: "a.txt", hash_protected: true)
+      iex> bound == {:digest, :sha256, plain}
+      false
   """
   @spec imprint(Tspex.data(), keyword()) :: {:ok, {:digest, Tspex.hash(), binary()}}
   def imprint(content, opts \\ []) do

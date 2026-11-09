@@ -9,6 +9,12 @@ defmodule Tspex.Error do
   that was time-stamped; `:cause` is the `Cmsex.Error` when the error came
   from the CMS layer.
 
+  The message says what happened without showing the data:
+
+      iex> error = %Tspex.Error{reason: :imprint_mismatch, detail: :digest}
+      iex> Exception.message(error)
+      "the message imprint does not match (:digest)"
+
   Reading:
 
     * `:malformed` - not valid BER or DER, or not the structure that was

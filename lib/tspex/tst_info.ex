@@ -88,6 +88,17 @@ defmodule Tspex.TSTInfo do
   The interval the time is known to be in: `{earliest, latest}`, `genTime`
   minus and plus the `accuracy`. Both are `genTime` when there is no
   accuracy. The ends are kept inside the years 1 to 9999.
+
+      iex> info = %Tspex.TSTInfo{
+      ...>   policy: {1, 2, 3},
+      ...>   hash: :sha256,
+      ...>   digest: <<0::256>>,
+      ...>   serial: 1,
+      ...>   gen_time: ~U[2026-11-09 12:00:00Z],
+      ...>   accuracy: %{seconds: 1, millis: 500, micros: 0}
+      ...> }
+      iex> Tspex.TSTInfo.bounds(info)
+      {~U[2026-11-09 11:59:58.500000Z], ~U[2026-11-09 12:00:01.500000Z]}
   """
   @spec bounds(t()) :: {DateTime.t(), DateTime.t()}
   def bounds(%__MODULE__{gen_time: gen_time, accuracy: nil}), do: {gen_time, gen_time}

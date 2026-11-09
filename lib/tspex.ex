@@ -103,7 +103,15 @@ defmodule Tspex do
   @spec request(data(), keyword()) :: {:ok, Request.t()}
   def request(data, opts \\ []), do: {:ok, Request.build(data, opts)}
 
-  @doc "Like `request/2`, but returns the request itself."
+  @doc """
+  Like `request/2`, but returns the request itself.
+
+      iex> request = Tspex.request!("hello", nonce: 42)
+      iex> {request.hash, request.nonce, request.cert_req}
+      {:sha256, 42, true}
+      iex> Base.encode16(request.digest, case: :lower)
+      "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+  """
   @spec request!(data(), keyword()) :: Request.t()
   def request!(data, opts \\ []), do: Request.build(data, opts)
 
@@ -113,6 +121,11 @@ defmodule Tspex do
 
   A request with a hash this library does not know is read, with the OID as
   the `:hash`.
+
+      iex> request = Tspex.request!("hello", nonce: 42)
+      iex> {:ok, read} = Tspex.decode_request(request.der)
+      iex> read == request
+      true
   """
   @spec decode_request(binary(), keyword()) :: {:ok, Request.t()} | {:error, Error.t()}
   def decode_request(der, opts \\ []), do: Request.decode(der, opts)
@@ -135,6 +148,13 @@ defmodule Tspex do
 
   A `PKIStatus` outside 0 to 5 is `:unknown_status`. A `failInfo` bit that
   RFC 3161 does not define is read as `{:unknown_bit, n}`.
+
+  A rejection that says only that the algorithm is not supported is eleven bytes:
+
+      iex> der = <<0x30, 0x09, 0x30, 0x07, 0x02, 0x01, 0x02, 0x03, 0x02, 0x07, 0x80>>
+      iex> {:ok, response} = Tspex.decode_response(der)
+      iex> {response.status, response.fail_info, response.token}
+      {:rejection, [:bad_alg], nil}
   """
   @spec decode_response(binary(), keyword()) :: {:ok, Response.t()} | {:error, Error.t()}
   def decode_response(der, opts \\ []), do: Response.decode(der, opts)
@@ -190,6 +210,12 @@ defmodule Tspex do
       `anyExtendedKeyUsage` is refused (`:eku_excludes_time_stamping`).
     * A CA with an `extKeyUsage` and no `keyUsage` makes the OTP raise on
       some versions; `Cmsex.verify/2` reports it as `:untrusted`.
+
+  The result is a keyword list for `:public_key.pkix_path_validation/3`:
+
+      iex> options = Tspex.path_validation_at(~U[2024-01-01 00:00:00Z])
+      iex> Keyword.keys(options)
+      [:verify_fun]
   """
   @spec path_validation_at(DateTime.t(), keyword()) :: keyword()
   def path_validation_at(time, opts \\ []), do: Tspex.PathValidation.options_at(time, opts)
@@ -281,7 +307,12 @@ defmodule Tspex do
   such and not as an error of the OTP.
 
   Errors are `{:error, %Tspex.Error{}}`; a bad argument raises
-  `ArgumentError` without showing the data.
+  `ArgumentError` without showing the data. Bytes that are not a token are an
+  error value, not an exception:
+
+      iex> {:error, error} = Tspex.verify("not a token", {:data, "x"}, trust: :none)
+      iex> error.reason
+      :malformed
   """
   @spec verify(binary(), Request.t() | tuple(), keyword()) ::
           {:ok, Tspex.Verified.t()} | {:error, Error.t()}
