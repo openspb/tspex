@@ -67,6 +67,9 @@ defmodule Tspex.Error do
     * `:no_time_stamp` - the signer has no time-stamp.
     * `:unsupported_evidence` - a `TimeStampedData` with `ersEvidence` or
       `otherEvidence`.
+    * `:content_missing`, `:unexpected_content` - a `TimeStampedData` that
+      does not carry its content and none was given, or that carries it and
+      one was given.
 
   Transport:
 
@@ -106,6 +109,8 @@ defmodule Tspex.Error do
           | :signer_not_found
           | :no_time_stamp
           | :unsupported_evidence
+          | :content_missing
+          | :unexpected_content
           | :transport
 
   @type t :: %__MODULE__{reason: reason(), detail: term(), cause: Exception.t() | nil}
@@ -161,6 +166,11 @@ defmodule Tspex.Error do
   defp describe(:signer_not_found, p), do: "no signer at the position #{show(p)}"
   defp describe(:no_time_stamp, _), do: "no time-stamp to verify"
   defp describe(:unsupported_evidence, _), do: "unsupported temporal evidence"
+  defp describe(:content_missing, _), do: "the structure has no content and none was given"
+
+  defp describe(:unexpected_content, _),
+    do: "the structure has its own content, and one was given"
+
   defp describe(:transport, d), do: "transport error (#{show(d)})"
 
   defp show(nil), do: "unknown"
