@@ -113,15 +113,26 @@ defmodule Tspex.TSTInfo do
     do: read_token(token, Options.take!(opts, @read_options))
 
   def read_token(token, opts) when is_binary(token) and is_map(opts) do
-    with :ok <- check_form(token, opts),
-         {:ok, signed_data} <- decode_cms(token, opts),
-         {:ok, content} <- tst_info_content(signed_data),
+    with {:ok, signed_data, content} <- read_signed_data(token, opts),
          {:ok, info} <- parse(content, opts) do
       {:ok, signed_data, info}
     end
   end
 
   def read_token(_token, _opts), do: raise(ArgumentError, "expected the token as a binary")
+
+  @doc false
+  # The SignedData of a token and the bytes of the TSTInfo it carries, before
+  # the TSTInfo is read: the verification looks at the signers in between.
+  @spec read_signed_data(binary(), map()) ::
+          {:ok, Cmsex.SignedData.t(), binary()} | {:error, Error.t()}
+  def read_signed_data(token, opts) do
+    with :ok <- check_form(token, opts),
+         {:ok, signed_data} <- decode_cms(token, opts),
+         {:ok, content} <- tst_info_content(signed_data) do
+      {:ok, signed_data, content}
+    end
+  end
 
   defp check_form(token, opts) do
     cond do
