@@ -4,40 +4,7 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
-
-### Added
-
-- `Tspex.TimeStampedData` (RFC 5544, experimental): `imprint/2`, `new/3`,
-  `extension_imprint/2`, `extend/3`, `encode/1`, `decode/2`, `time_stamps/2` and
-  `verify/2`. A document with a chain of time-stamps, each covering the element
-  before it, with the `MetaData` under the first token when it is hash
-  protected. The `dataUri` is never fetched; `ersEvidence` and other evidence
-  are read and written, not verified.
-- `TimeStampedData.verify/2` says in `ordered` whether the `genTime` of the
-  tokens ever goes back along the chain, and `:max_time_back` refuses it
-  (`:time_order`) when it goes back by more than the seconds you give.
-- The error reasons `:content_missing`, `:unexpected_content` and
-  `:time_order`.
-
-- A tested recipe in the guide for `:revocation` from CRLs you hold, with the
-  rules of RFC 3161, section 4 (key compromise voids every token; another
-  reason only the tokens made at or after the revocation).
-
-### Fixed
-
-- A token signed with SHA-1 (as the TSA of Apple and the LibreSSL of macOS do)
-  is `:weak_algorithm` with `detail: :sha1` and the CMS error as `cause`, not
-  `:token_invalid`; `allow_sha1: true` accepts it.
-- `Tspex.verify/3` raised `UnicodeConversionError` when the signing certificate
-  had bytes that are not text in its validity time (the signer wrote the
-  certificate, so it can write that). It is `:bad_tsa_certificate` with
-  `detail: :unreadable`.
-- `Tspex.HTTP.post/3` raised the same error for a `Location` with bytes that are
-  not ASCII when `:max_redirects` allowed following it; such a redirect is not
-  followed. A URL whose host is not valid UTF-8 is an `ArgumentError`.
-
-## [0.1.0] - not yet published
+## [0.1.0] - 2026-11-09
 
 The first release.
 
@@ -58,6 +25,8 @@ The first release.
   outlives the certificate that signed it. Nonce, policy, `tsa` name, critical
   extensions, clock skew and a `:revocation` function are checked. Status and
   `failInfo` of a refusal are reported as errors.
+  A token signed with SHA-1 (as the TSA of Apple and the LibreSSL of macOS do)
+  is `:weak_algorithm` with `detail: :sha1`; `allow_sha1: true` accepts it.
 - `Tspex.stamp/2`: request, transport, response and verification in one call,
   with `Tspex.HTTP`, an HTTP/1.1 client with limits on the head, the body and
   the time, and a verified TLS connection; or your own `:transport`.
@@ -70,4 +39,21 @@ The first release.
   certificate path as of the time of its stamp.
 - `Tspex.path_validation_at/2`, for validating a certificate path at a date.
 - Tested against `openssl ts` (OpenSSL 1.1.1 and 3.x, LibreSSL) and the Java
-  `jarsigner`, both ways, with a negative corpus and fuzzing of every reader.
+  `jarsigner`, both ways, with a negative corpus and fuzzing of every reader,
+  including inputs that are not text where text is expected.
+- `Tspex.TimeStampedData` (RFC 5544, experimental): `imprint/2`, `new/3`,
+  `extension_imprint/2`, `extend/3`, `encode/1`, `decode/2`, `time_stamps/2` and
+  `verify/2`. A document with a chain of time-stamps, each covering the element
+  before it, with the `MetaData` under the first token when it is hash
+  protected. The `dataUri` is never fetched; `ersEvidence` and other evidence
+  are read and written, not verified.
+- `TimeStampedData.verify/2` says in `ordered` whether the `genTime` of the
+  tokens ever goes back along the chain, and `:max_time_back` refuses it
+  (`:time_order`) when it goes back by more than the seconds you give.
+- The error reasons `:content_missing`, `:unexpected_content` and
+  `:time_order`.
+- A tested recipe in the guide for `:revocation` from CRLs you hold, with the
+  rules of RFC 3161, section 4 (key compromise voids every token; another
+  reason only the tokens made at or after the revocation).
+
+[0.1.0]: https://github.com/openspb/tspex/releases/tag/v0.1.0
