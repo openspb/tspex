@@ -201,7 +201,7 @@ defmodule Tspex.TSTInfoTest do
                parse(base([{:seq, []}, {:seq, []}]))
     end
 
-    test "the message imprint: unknown hash, MD5, wrong size" do
+    test "the message imprint: unknown hash, MD5, and a size that is not the hash's" do
       assert {:ok, info} = parse(List.replace_at(base(), 2, imprint({1, 2, 3, 4}, "any size")))
       assert info.hash == {1, 2, 3, 4}
       assert info.digest == "any size"
@@ -209,8 +209,11 @@ defmodule Tspex.TSTInfoTest do
       md5 = imprint({1, 2, 840, 113_549, 2, 5}, :binary.copy(<<1>>, 16))
       assert {:ok, %{hash: :md5}} = parse(List.replace_at(base(), 2, md5))
 
-      assert {:error, %Error{reason: :malformed}} =
-               parse(List.replace_at(base(), 2, imprint(@sha256, :binary.copy(<<1>>, 31))))
+      # a wrong size is for the verification to report (:imprint_mismatch, :length)
+      short = :binary.copy(<<1>>, 31)
+
+      assert {:ok, %{hash: :sha256, digest: ^short}} =
+               parse(List.replace_at(base(), 2, imprint(@sha256, short)))
     end
 
     test "an imprint without NULL parameters is read the same" do

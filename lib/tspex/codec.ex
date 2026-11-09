@@ -32,21 +32,25 @@ defmodule Tspex.Codec do
   @doc """
   MessageImprint: the hash (a name, `:md5`, or the OID tuple of an algorithm
   this library does not know) and the digest, whose size is checked for a
-  known hash. The parameters of the hash may be absent or NULL.
+  known hash unless `check_size?` is false (the verification reports a
+  wrong size of a token as its own error). The parameters of the hash may be
+  absent or NULL.
   """
-  @spec message_imprint(DER.element()) :: {:ok, hash(), binary()} | :error
-  def message_imprint({0x30, _, _} = element) do
+  @spec message_imprint(DER.element(), boolean()) :: {:ok, hash(), binary()} | :error
+  def message_imprint(element, check_size? \\ true)
+
+  def message_imprint({0x30, _, _} = element, check_size?) do
     with [algorithm, {0x04, _, _} = digest_element] <- DER.children(element),
          {:ok, hash} <- hash_algorithm(algorithm),
          {:ok, digest} <- DER.octets(digest_element),
-         true <- size_ok?(hash, digest) do
+         true <- not check_size? or size_ok?(hash, digest) do
       {:ok, hash, digest}
     else
       _ -> :error
     end
   end
 
-  def message_imprint(_element), do: :error
+  def message_imprint(_element, _check_size?), do: :error
 
   defp hash_algorithm({0x30, _, _} = element) do
     case DER.children(element) do
@@ -142,4 +146,47 @@ defmodule Tspex.Codec do
       {:seq, [{:oid, oid}] ++ flag ++ [{:octets, value}]}
     end
   end
+
+  ## Names
+
+  @type name ::
+          {:directory_name, binary()}
+          | {:dns_name, String.t()}
+          | {:uri, String.t()}
+          | {:rfc822_name, String.t()}
+          | {:ip_address, binary()}
+          | {:other, binary()}
+
+  @doc """
+  A GeneralName (RFC 5280, 4.2.1.6): the Name of a directoryName as its DER,
+  the text of the IA5String choices, the octets of an address, and anything
+  else as the DER of the element. `:error` for text that is not ASCII and
+  for an address that is not 4 or 16 octets.
+  """
+  @spec general_name(DER.element()) :: {:ok, name()} | :error
+  def general_name({0x81, content, _}), do: ascii(content, :rfc822_name)
+  def general_name({0x82, content, _}), do: ascii(content, :dns_name)
+  def general_name({0x86, content, _}), do: ascii(content, :uri)
+
+  def general_name({0x87, content, _}) when byte_size(content) in [4, 16],
+    do: {:ok, {:ip_address, content}}
+
+  def general_name({0x87, _, _}), do: :error
+
+  def general_name({0xA4, _, _} = element) do
+    case DER.children(element) do
+      [{0x30, _, raw}] -> {:ok, {:directory_name, raw}}
+      _ -> :error
+    end
+  end
+
+  def general_name({_id, _content, raw}), do: {:ok, {:other, raw}}
+
+  defp ascii(content, kind) do
+    if ascii?(content), do: {:ok, {kind, content}}, else: :error
+  end
+
+  defp ascii?(<<>>), do: true
+  defp ascii?(<<byte, rest::binary>>) when byte < 0x80, do: ascii?(rest)
+  defp ascii?(_), do: false
 end

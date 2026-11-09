@@ -31,17 +31,9 @@ defmodule Tspex.TSTInfo do
       when `genTime` has a fraction that is not in DER.
   """
 
-  import Bitwise
-
   alias Tspex.{Codec, DER, Error, Options, Time}
 
-  @type name ::
-          {:directory_name, binary()}
-          | {:dns_name, String.t()}
-          | {:uri, String.t()}
-          | {:rfc822_name, String.t()}
-          | {:ip_address, binary()}
-          | {:other, binary()}
+  @type name :: Codec.name()
 
   @type accuracy :: %{seconds: non_neg_integer(), millis: 0..999, micros: 0..999}
 
@@ -222,7 +214,8 @@ defmodule Tspex.TSTInfo do
   defp version(element), do: Codec.integer(element)
   defp oid(element), do: DER.oid(element)
   defp integer(element), do: Codec.integer(element)
-  defp message_imprint(element), do: Codec.message_imprint(element)
+  # The size of the digest is checked by the verification (:imprint_mismatch).
+  defp message_imprint(element), do: Codec.message_imprint(element, false)
 
   defp gen_time({0x18, content, _raw}), do: Time.parse(content)
   defp gen_time(_element), do: :error
@@ -289,34 +282,8 @@ defmodule Tspex.TSTInfo do
 
   defp tsa(element) do
     case DER.children(element) do
-      [general_name] -> general_name(general_name)
+      [general_name] -> Codec.general_name(general_name)
       _ -> :error
     end
   end
-
-  defp general_name({0x81, content, _}), do: ascii(content, :rfc822_name)
-  defp general_name({0x82, content, _}), do: ascii(content, :dns_name)
-  defp general_name({0x86, content, _}), do: ascii(content, :uri)
-
-  defp general_name({0x87, content, _}) when byte_size(content) in [4, 16],
-    do: {:ok, {:ip_address, content}}
-
-  defp general_name({0x87, _, _}), do: :error
-
-  defp general_name({0xA4, _, _} = element) do
-    case DER.children(element) do
-      [{0x30, _, raw}] -> {:ok, {:directory_name, raw}}
-      _ -> :error
-    end
-  end
-
-  defp general_name({_id, _content, raw}), do: {:ok, {:other, raw}}
-
-  defp ascii(content, kind) do
-    if ascii?(content), do: {:ok, {kind, content}}, else: :error
-  end
-
-  defp ascii?(<<>>), do: true
-  defp ascii?(<<byte, rest::binary>>) when band(byte, 0x80) == 0, do: ascii?(rest)
-  defp ascii?(_), do: false
 end
