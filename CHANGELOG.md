@@ -6,6 +6,18 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `Tspex.TimeStampedData` (RFC 5544, experimental): `imprint/2`, `new/3`,
+  `extension_imprint/2`, `extend/3`, `encode/1`, `decode/2`, `time_stamps/2` and
+  `verify/2`. A document with a chain of time-stamps, each covering the element
+  before it, with the `MetaData` under the first token when it is hash
+  protected. The `dataUri` is never fetched; `ersEvidence` and other evidence
+  are read and written, not verified.
+- The error reasons `:content_missing` and `:unexpected_content`.
+
+## [0.1.0] - not yet published
+
 The first release.
 
 ### Added
