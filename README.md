@@ -188,6 +188,13 @@ time-stamped. The negative cases (changed tokens, wrong imprints and nonces, cer
 are not for time-stamping, chains that do not lead to a root) are in the tests,
 along with fuzzing of every reader.
 
+It has also been tried by hand against the time-stamping services that
+several certification authorities run in public: tokens signed with RSA
+(2048 to 4096 bits) and ECDSA keys, with SHA-256, SHA-384 and SHA-512, and
+carrying ESSCertID, ESSCertIDv2 or both, verified fresh and as stored
+tokens. One of them signs with SHA-1, so it needs `allow_sha1: true`. That
+check needs the network and is not part of the tests.
+
 ## Security
 
 Read [SECURITY.md](SECURITY.md) for the threat model and for how to report a
