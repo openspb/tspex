@@ -30,7 +30,7 @@ defmodule Tspex.MixProject do
   end
 
   def application do
-    [extra_applications: [:crypto, :public_key, :inets, :ssl]]
+    [extra_applications: [:crypto, :public_key, {:ssl, :optional}]]
   end
 
   defp elixirc_paths(:test), do: ["lib", "test/support"]

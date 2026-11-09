@@ -8,6 +8,9 @@ defmodule Tspex.Options do
 
   @max_size 1_048_576
 
+  # Written by the HTTP client itself.
+  @reserved_headers ["host", "content-length", "connection", "transfer-encoding"]
+
   @defaults %{
     max_size: @max_size,
     max_depth: 32,
@@ -40,7 +43,8 @@ defmodule Tspex.Options do
     headers: [],
     timeout: 30_000,
     max_redirects: 0,
-    max_response_bytes: @max_size
+    max_response_bytes: @max_size,
+    ssl: []
   }
 
   @type t :: map()
@@ -253,12 +257,18 @@ defmodule Tspex.Options do
   end
 
   defp check!(:headers, value) do
-    unless is_list(value) and
-             Enum.all?(value, fn
-               {k, v} -> is_binary(k) and is_binary(v)
-               _ -> false
-             end),
-           do: raise(ArgumentError, ":headers must be a list of {name, value} strings")
+    unless is_list(value) and Enum.all?(value, &header?/1),
+      do: raise(ArgumentError, ":headers must be a list of {name, value} strings")
+
+    for {name, _value} <- value, String.downcase(name) in @reserved_headers do
+      raise ArgumentError, "the header #{name} is set by Tspex and cannot be given"
+    end
+
+    :ok
+  end
+
+  defp check!(:ssl, value) do
+    unless Keyword.keyword?(value), do: raise(ArgumentError, ":ssl must be a keyword list")
   end
 
   defp check!(:timeout, value) do
@@ -273,6 +283,15 @@ defmodule Tspex.Options do
 
   # The other options are checked where they are used.
   defp check!(_key, _value), do: :ok
+
+  # A header field: a token as the name, and a value without a line break
+  # or a NUL, so that a header cannot be used to write another one.
+  defp header?({name, value}) when is_binary(name) and is_binary(value),
+    do: Regex.match?(~r/\A[!#$%&'*+\-.^_`|~0-9A-Za-z]+\z/, name) and not has_break?(value)
+
+  defp header?(_), do: false
+
+  defp has_break?(value), do: String.contains?(value, ["\r", "\n", <<0>>])
 
   defp binaries!(key, value) do
     unless is_list(value) and Enum.all?(value, &is_binary/1),
