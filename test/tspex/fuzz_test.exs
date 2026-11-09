@@ -15,7 +15,9 @@ defmodule Tspex.FuzzTest do
         {:decode_request, "q_sha512.tsq"},
         {:decode_response, "r_alg_reject.tsr"},
         {:decode_response, "r_rsa.tsr"},
-        {:decode_response, "r_ec.tsr"}
+        {:decode_response, "r_ec.tsr"},
+        {:decode_token, "r_rsa.tst"},
+        {:decode_token, "r_ec.tst"}
       ] do
     property "#{reader} of #{fixture} with edits" do
       base = Fixtures.read(unquote(fixture))
@@ -26,7 +28,7 @@ defmodule Tspex.FuzzTest do
     end
   end
 
-  for reader <- [:decode_request, :decode_response] do
+  for reader <- [:decode_request, :decode_response, :decode_token] do
     property "#{reader} of random bytes" do
       check all input <- TestFuzz.random(), max_runs: TestFuzz.rounds() do
         assert ok_or_error?(apply(Tspex, unquote(reader), [input]))

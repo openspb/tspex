@@ -5,7 +5,7 @@ defmodule Tspex do
   Work in progress.
   """
 
-  alias Tspex.{Error, Request, Response}
+  alias Tspex.{Error, Request, Response, TSTInfo}
 
   @doc """
   Builds a time-stamp request (`TimeStampReq`, RFC 3161, 2.4.1) for `data`.
@@ -76,6 +76,27 @@ defmodule Tspex do
   @doc "Like `decode_response/2`, but raises `Tspex.Error`."
   @spec decode_response!(binary(), keyword()) :: Response.t()
   def decode_response!(der, opts \\ []), do: bang(decode_response(der, opts))
+
+  @doc """
+  Reads a time-stamp token (the `ContentInfo` of RFC 3161, 2.4.2) down to
+  its `TSTInfo`, **without verifying anything**: not the signature, not the
+  certificate of the TSA, not the match with a request. Use it to look at a
+  token; use `verify/3` before relying on what it says.
+
+  Takes the limits `:max_size` (1 MiB), `:max_depth`, `:max_nodes`,
+  `:max_signers`, `:max_certificates` and `:max_attributes`.
+
+  `:not_a_time_stamp_token` when the `ContentInfo` is not a `SignedData` or
+  the signed content is not a `TSTInfo`.
+  """
+  @spec decode_token(binary(), keyword()) :: {:ok, TSTInfo.t()} | {:error, Error.t()}
+  def decode_token(token, opts \\ []) do
+    with {:ok, _signed_data, info} <- TSTInfo.read_token(token, opts), do: {:ok, info}
+  end
+
+  @doc "Like `decode_token/2`, but raises `Tspex.Error`."
+  @spec decode_token!(binary(), keyword()) :: TSTInfo.t()
+  def decode_token!(token, opts \\ []), do: bang(decode_token(token, opts))
 
   defp bang({:ok, value}), do: value
   defp bang({:error, error}), do: raise(error)

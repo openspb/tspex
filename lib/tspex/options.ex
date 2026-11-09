@@ -12,6 +12,9 @@ defmodule Tspex.Options do
     max_size: @max_size,
     max_depth: 32,
     max_nodes: 100_000,
+    max_signers: 64,
+    max_certificates: 256,
+    max_attributes: 64,
     hash: :sha256,
     allow_sha1: false,
     policy: nil,
@@ -89,7 +92,16 @@ defmodule Tspex.Options do
     end
   end
 
-  @limits [:max_size, :max_depth, :max_nodes, :min_rsa_bits, :max_response_bytes]
+  @limits [
+    :max_size,
+    :max_depth,
+    :max_nodes,
+    :max_signers,
+    :max_certificates,
+    :max_attributes,
+    :min_rsa_bits,
+    :max_response_bytes
+  ]
 
   defp check!(key, value) when key in @limits do
     unless is_integer(value) and value > 0,
