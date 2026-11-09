@@ -47,6 +47,39 @@ defmodule Tspex.InteropTest do
             end
           end
 
+          # No tool reads RFC 5544 itself; what it can say is that the
+          # structure is DER all the way down, with the tokens inside.
+          test "parses the TimeStampedData that Tspex writes", %{tmp_dir: dir} do
+            {path, _version} = unquote(Macro.escape(found))
+            tsa = TestTSA.new()
+            token = fn imprint -> TestTSA.token(tsa, Tspex.request!(imprint)) end
+
+            options = [
+              file_name: "contract.pdf",
+              media_type: "application/pdf",
+              hash_protected: true
+            ]
+
+            {:ok, imprint} = Tspex.TimeStampedData.imprint(@data, options)
+
+            {:ok, tsd} =
+              Tspex.TimeStampedData.new(@data, token.(imprint), options ++ [trust: [tsa.root]])
+
+            {:ok, next} = Tspex.TimeStampedData.extension_imprint(tsd)
+            {:ok, tsd} = Tspex.TimeStampedData.extend(tsd, token.(next), trust: [tsa.root])
+
+            file = Path.join(dir, "tsd.der")
+            File.write!(file, Tspex.TimeStampedData.encode(tsd))
+
+            {text, 0} = Interop.run(path, ~w(asn1parse -inform DER -in #{file}))
+
+            assert text =~ "1.2.840.113549.1.9.16.1.31"
+            assert text =~ "contract.pdf"
+            assert length(Regex.scan(~r/pkcs7-signedData/, text)) == 2
+            # In each token: the eContentType and the content-type attribute.
+            assert length(Regex.scan(~r/id-smime-ct-TSTInfo/, text)) == 4
+          end
+
           for kind <- [:rsa, :ec] do
             test "answers a Tspex request with a #{kind} TSA, and Tspex verifies the answer", %{
               tmp_dir: dir
