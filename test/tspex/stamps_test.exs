@@ -325,7 +325,7 @@ defmodule Tspex.StampsTest do
     end
   end
 
-  describe "verify_at_stamp/2" do
+  describe "verify_signature_at_time_stamp/2" do
     test "a signature whose certificate has expired, stamped while it was valid" do
       tsa = TestTSA.new(root: @window, cert: @window)
 
@@ -341,7 +341,10 @@ defmodule Tspex.StampsTest do
       assert {:error, %Cmsex.Error{reason: :untrusted}} = Cmsex.verify(stamped, trust: [pki.root])
 
       assert {:ok, [entry]} =
-               Tspex.verify_at_stamp(stamped, trust: [pki.root], tsa_trust: [tsa.root])
+               Tspex.verify_signature_at_time_stamp(stamped,
+                 trust: [pki.root],
+                 tsa_trust: [tsa.root]
+               )
 
       assert entry.time == @old
       assert entry.signer.certificate == pki.cert
@@ -362,7 +365,10 @@ defmodule Tspex.StampsTest do
       {_cms, stamped} = stamped(tsa, pki, gen_time: ~U[2022-06-01 12:00:00Z])
 
       assert {:error, %Error{reason: :untrusted}} =
-               Tspex.verify_at_stamp(stamped, trust: [pki.root], tsa_trust: [tsa.root])
+               Tspex.verify_signature_at_time_stamp(stamped,
+                 trust: [pki.root],
+                 tsa_trust: [tsa.root]
+               )
     end
 
     test "a certificate that was not yet valid at the time of the stamp" do
@@ -377,7 +383,10 @@ defmodule Tspex.StampsTest do
       {_cms, stamped} = stamped(tsa, pki, gen_time: @old)
 
       assert {:error, %Error{reason: :untrusted}} =
-               Tspex.verify_at_stamp(stamped, trust: [pki.root], tsa_trust: [tsa.root])
+               Tspex.verify_signature_at_time_stamp(stamped,
+                 trust: [pki.root],
+                 tsa_trust: [tsa.root]
+               )
     end
 
     test "a root that was not yet valid at the time of the stamp" do
@@ -392,13 +401,18 @@ defmodule Tspex.StampsTest do
       {_cms, stamped} = stamped(tsa, pki, gen_time: @old)
 
       assert {:error, %Error{reason: :untrusted}} =
-               Tspex.verify_at_stamp(stamped, trust: [pki.root], tsa_trust: [tsa.root])
+               Tspex.verify_signature_at_time_stamp(stamped,
+                 trust: [pki.root],
+                 tsa_trust: [tsa.root]
+               )
     end
 
     test "N91: no stamp is not today", %{tsa: tsa, pki: pki} do
       cms = sign(as_signer(pki))
 
-      assert reason(Tspex.verify_at_stamp(cms, trust: [pki.root], tsa_trust: [tsa.root])) ==
+      assert reason(
+               Tspex.verify_signature_at_time_stamp(cms, trust: [pki.root], tsa_trust: [tsa.root])
+             ) ==
                :no_time_stamp
 
       assert {:ok, _} = Cmsex.verify(cms, trust: [pki.root])
@@ -408,9 +422,10 @@ defmodule Tspex.StampsTest do
       {_cms, stamped} = stamped(tsa, pki)
 
       assert {:error, %Error{reason: :untrusted}} =
-               Tspex.verify_at_stamp(stamped, trust: [pki.root])
+               Tspex.verify_signature_at_time_stamp(stamped, trust: [pki.root])
 
-      assert {:ok, [_]} = Tspex.verify_at_stamp(stamped, trust: [pki.root, tsa.root])
+      assert {:ok, [_]} =
+               Tspex.verify_signature_at_time_stamp(stamped, trust: [pki.root, tsa.root])
     end
 
     test "another root for the signer", %{tsa: tsa, pki: pki} do
@@ -418,7 +433,10 @@ defmodule Tspex.StampsTest do
       stranger = signer_pki(:stranger)
 
       assert {:error, %Error{reason: :untrusted}} =
-               Tspex.verify_at_stamp(stamped, trust: [stranger.root], tsa_trust: [tsa.root])
+               Tspex.verify_signature_at_time_stamp(stamped,
+                 trust: [stranger.root],
+                 tsa_trust: [tsa.root]
+               )
     end
 
     test "a signature that does not verify", %{tsa: tsa, pki: pki} do
@@ -430,7 +448,10 @@ defmodule Tspex.StampsTest do
       broken = before <> head <> <<Bitwise.bxor(last, 1)>> <> after_
 
       assert {:error, %Error{reason: reason}} =
-               Tspex.verify_at_stamp(broken, trust: [pki.root], tsa_trust: [tsa.root])
+               Tspex.verify_signature_at_time_stamp(broken,
+                 trust: [pki.root],
+                 tsa_trust: [tsa.root]
+               )
 
       assert reason in [:cms_invalid, :imprint_mismatch]
     end
@@ -440,7 +461,11 @@ defmodule Tspex.StampsTest do
       pki = signer_pki(:eku, root: @window, cert: [eku: [TestPKI.client_auth()]])
       {_cms, stamped} = stamped(tsa, pki)
 
-      assert {:ok, [_]} = Tspex.verify_at_stamp(stamped, trust: [pki.root], tsa_trust: [tsa.root])
+      assert {:ok, [_]} =
+               Tspex.verify_signature_at_time_stamp(stamped,
+                 trust: [pki.root],
+                 tsa_trust: [tsa.root]
+               )
     end
 
     test "the revocation callback gets the path of the signer and the time of the stamp" do
@@ -455,7 +480,7 @@ defmodule Tspex.StampsTest do
       end
 
       assert {:ok, [_]} =
-               Tspex.verify_at_stamp(stamped,
+               Tspex.verify_signature_at_time_stamp(stamped,
                  trust: [pki.root],
                  tsa_trust: [tsa.root],
                  revocation: check
@@ -468,7 +493,7 @@ defmodule Tspex.StampsTest do
       refuse = fn _, _ -> {:error, :revoked} end
 
       assert failure(
-               Tspex.verify_at_stamp(stamped,
+               Tspex.verify_signature_at_time_stamp(stamped,
                  trust: [pki.root],
                  tsa_trust: [tsa.root],
                  revocation: refuse
@@ -492,7 +517,7 @@ defmodule Tspex.StampsTest do
       {:ok, cms} = Tspex.add_signature_time_stamp(cms, 1, stamp(tsa, cms, 1, gen_time: later))
 
       assert {:ok, [one, two]} =
-               Tspex.verify_at_stamp(cms,
+               Tspex.verify_signature_at_time_stamp(cms,
                  trust: [first.root, second.root],
                  tsa_trust: [tsa.root]
                )
@@ -519,7 +544,7 @@ defmodule Tspex.StampsTest do
       {:ok, cms} = Tspex.add_signature_time_stamp(cms, 0, stamp(tsa, cms, 0, gen_time: @old))
 
       assert {:ok, [entry]} =
-               Tspex.verify_at_stamp(cms,
+               Tspex.verify_signature_at_time_stamp(cms,
                  trust: [pki.root],
                  tsa_trust: [tsa.root, other.root]
                )
@@ -530,14 +555,21 @@ defmodule Tspex.StampsTest do
 
     test "arguments", %{tsa: tsa, pki: pki} do
       {_cms, stamped} = stamped(tsa, pki)
-      assert_raise ArgumentError, ~r/trust/, fn -> Tspex.verify_at_stamp(stamped, []) end
-      assert_raise ArgumentError, fn -> Tspex.verify_at_stamp(stamped, trust: :none) end
 
-      assert_raise ArgumentError, fn ->
-        Tspex.verify_at_stamp(stamped, trust: [pki.root], nope: 1)
+      assert_raise ArgumentError, ~r/trust/, fn ->
+        Tspex.verify_signature_at_time_stamp(stamped, [])
       end
 
-      assert reason(Tspex.verify_at_stamp("garbage", trust: [pki.root])) == :cms_invalid
+      assert_raise ArgumentError, fn ->
+        Tspex.verify_signature_at_time_stamp(stamped, trust: :none)
+      end
+
+      assert_raise ArgumentError, fn ->
+        Tspex.verify_signature_at_time_stamp(stamped, trust: [pki.root], nope: 1)
+      end
+
+      assert reason(Tspex.verify_signature_at_time_stamp("garbage", trust: [pki.root])) ==
+               :cms_invalid
     end
   end
 
@@ -672,9 +704,9 @@ defmodule Tspex.StampsTest do
     test "in the signature time-stamp, read for its time", %{tsa: tsa, pki: pki} do
       {_cms, stamped} = stamped(tsa, pki)
       options = [trust: [pki.root], tsa_trust: [tsa.root]]
-      assert {:ok, [_]} = Tspex.verify_at_stamp(stamped, options)
+      assert {:ok, [_]} = Tspex.verify_signature_at_time_stamp(stamped, options)
 
-      assert TestFuzz.sweep(stamped, &Tspex.verify_at_stamp(&1, options)) == []
+      assert TestFuzz.sweep(stamped, &Tspex.verify_signature_at_time_stamp(&1, options)) == []
     end
 
     test "in a content time-stamp that the signer signed", %{tsa: tsa, pki: pki} do

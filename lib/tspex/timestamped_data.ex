@@ -6,7 +6,8 @@ defmodule Tspex.TimeStampedData do
   time-stamps cover, and there is no tool to test against; this module
   makes a choice and documents it below. The functions and fields here may
   change in a minor release until the choice is confirmed by another
-  implementation.
+  implementation. For the same reason only `decode!/2` has a `!` variant for
+  now: the other functions return `{:ok, value}` or `{:error, %Tspex.Error{}}`.
 
   A `TimeStampedData` is a `ContentInfo` (content type
   `id-ct-timestampedData`) that holds the document, or says where to find

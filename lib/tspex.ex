@@ -32,7 +32,7 @@ defmodule Tspex do
       relying on a result.
     * `signature_imprint/3`, `add_signature_time_stamp/4`,
       `signature_time_stamps/3`, `verify_signature_time_stamps/3` and
-      `verify_at_stamp/2` time-stamp a signature of a CMS message.
+      `verify_signature_at_time_stamp/2` time-stamp a signature of a CMS message.
       `content_time_stamp_attribute/1` and `verify_content_time_stamp/3` do
       the same for the content.
     * `path_validation_at/2` gives the options to validate a certificate path
@@ -40,9 +40,10 @@ defmodule Tspex do
     * `Tspex.TimeStampedData` (experimental) keeps a document with a chain of
       time-stamps, RFC 5544.
 
-  A function returns `{:ok, value}` or `{:error, %Tspex.Error{}}`, and has a
-  `!` variant that raises the error. A bad argument raises `ArgumentError`,
-  without showing your data.
+  A function that can fail returns `{:ok, value}` or `{:error, %Tspex.Error{}}`.
+  `request!/2`, `decode_request!/2`, `decode_response!/2`, `decode_token!/2`,
+  `verify!/3` and `stamp!/2` raise the error instead. A bad argument raises
+  `ArgumentError`, without showing your data.
   """
 
   alias Tspex.{Error, Request, Response, TSTInfo}
@@ -94,6 +95,10 @@ defmodule Tspex do
   The hash algorithm is written with NULL parameters, as the `openssl ts`
   tool and the Java `jarsigner` do. A bad argument raises `ArgumentError`
   without showing the data.
+
+  Building a request cannot fail in any other way, so this always returns
+  `{:ok, request}`; it has the same shape as the other functions so that code
+  can treat them alike. `request!/2` is the same without the tuple.
   """
   @spec request(data(), keyword()) :: {:ok, Request.t()}
   def request(data, opts \\ []), do: {:ok, Request.build(data, opts)}
@@ -397,7 +402,7 @@ defmodule Tspex do
   No time-stamp is `:no_time_stamp`.
 
   This says when the signature existed. It does not check the signature
-  itself or the certificate of the signer: see `verify_at_stamp/2`.
+  itself or the certificate of the signer: see `verify_signature_at_time_stamp/2`.
   """
   @spec verify_signature_time_stamps(binary(), Cmsex.position(), keyword()) ::
           {:ok, [Tspex.Verified.t()]} | {:error, Error.t()}
@@ -467,9 +472,14 @@ defmodule Tspex do
   authorized to sign: the signature policy of a profile such as CAdES is not
   checked here. Validating at a date is not checking revocation at that date
   (see `path_validation_at/2`).
+
+  To check only the time-stamps of one signer, and not the signature or its
+  certificate, use `verify_signature_time_stamps/3`.
   """
-  @spec verify_at_stamp(binary(), keyword()) :: {:ok, [map()]} | {:error, Error.t()}
-  def verify_at_stamp(cms, opts), do: Tspex.Stamps.verify_at_stamp(cms, opts)
+  @spec verify_signature_at_time_stamp(binary(), keyword()) ::
+          {:ok, [map()]} | {:error, Error.t()}
+  def verify_signature_at_time_stamp(cms, opts),
+    do: Tspex.Stamps.verify_signature_at_time_stamp(cms, opts)
 
   defp bang({:ok, value}), do: value
   defp bang({:error, error}), do: raise(error)

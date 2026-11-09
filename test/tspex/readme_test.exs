@@ -72,7 +72,7 @@ defmodule Tspex.ReadmeTest do
 
     for function <-
           ~w(stamp verify request! decode_token signature_imprint add_signature_time_stamp
-             verify_at_stamp content_time_stamp_attribute verify_content_time_stamp) do
+             verify_signature_at_time_stamp content_time_stamp_attribute verify_content_time_stamp) do
       assert code =~ "Tspex.#{function}(", "no example of Tspex.#{function}"
     end
 

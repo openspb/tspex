@@ -91,8 +91,8 @@ signature operations.
   age; a time-stamp is evidence for as long as its algorithms hold. Archive
   time-stamps (a stamp over a stamp) are outside this library.
 * That the stamped document or signature is valid, or that the signer was
-  authorized to sign. `verify_at_stamp/2` checks a signature and its
-  certificate path at the time of the stamp, not a signature policy.
+  authorized to sign. `verify_signature_at_time_stamp/2` checks a signature
+  and its certificate path at the time of the stamp, not a signature policy.
 * For a `TimeStampedData` (experimental): that the choice of what the second
   and later tokens cover is the one other implementations make. RFC 5544 does
   not say, and this library reads it as the whole previous element. It does not

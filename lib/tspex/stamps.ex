@@ -210,8 +210,9 @@ defmodule Tspex.Stamps do
 
   ## A signature as it was at the time of its time-stamp
 
-  @spec verify_at_stamp(binary(), keyword()) :: {:ok, [map()]} | {:error, Error.t()}
-  def verify_at_stamp(cms, opts) do
+  @spec verify_signature_at_time_stamp(binary(), keyword()) ::
+          {:ok, [map()]} | {:error, Error.t()}
+  def verify_signature_at_time_stamp(cms, opts) do
     Options.take!(opts, @at_stamp_options, [:trust])
     {trust, tsa_trust, mode, revocation, rest} = at_stamp_options!(opts)
 

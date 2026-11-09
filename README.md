@@ -105,15 +105,16 @@ signer = %{certificate: File.read!("signer.crt"), key: File.read!("signer.key")}
 {:ok, cms} = Tspex.add_signature_time_stamp(cms, 0, stamp)
 ```
 
-`Tspex.verify_at_stamp/2` then verifies the signature **as it was at the time
-of the stamp**: the stamp is verified, and the signature and the certificate
-path of the signer are checked at that time. The certificate of the signer
-may have expired since, and the signature is still good.
+`Tspex.verify_signature_at_time_stamp/2` then verifies the signature **as it
+was at the time of the stamp**: the stamp is verified, and the signature and
+the certificate path of the signer are checked at that time. The certificate
+of the signer may have expired since, and the signature is still good.
 
 ```elixir
 signer_root = File.read!("signer-root.crt")
 
-{:ok, [result]} = Tspex.verify_at_stamp(cms, trust: [signer_root], tsa_trust: [tsa_root])
+{:ok, [result]} =
+  Tspex.verify_signature_at_time_stamp(cms, trust: [signer_root], tsa_trust: [tsa_root])
 result.time
 ```
 
@@ -175,8 +176,17 @@ document is never fetched: give the document as `:content`.
 * `:max_size`, `:max_depth`, `:max_nodes` - limits for what is read.
 
 Errors are `{:error, %Tspex.Error{}}` with a stable `:reason` atom. A bad
-argument raises `ArgumentError`, without showing your data. Every function has
-a `!` variant that raises `Tspex.Error`.
+argument raises `ArgumentError`, without showing your data. `verify!/3`,
+`stamp!/2`, `request!/2` and the `decode_*!` functions raise `Tspex.Error`
+instead of returning it.
+
+## Versions
+
+Until 1.0 a minor version can change the API, and the CHANGELOG says what.
+From 1.0 on, a new field in `Tspex.Verified`, `Tspex.TSTInfo`,
+`Tspex.Request` or `Tspex.Response`, and a new `:reason` in `Tspex.Error`, are
+minor changes. Read the fields you need instead of matching a whole struct, and
+keep a clause for a reason you do not know.
 
 ## What it checks against
 

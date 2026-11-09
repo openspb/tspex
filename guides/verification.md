@@ -234,8 +234,8 @@ The full list is in `Tspex.Error`.
 
 For a signature in a CMS message, see `Tspex.add_signature_time_stamp/4` (the
 stamp over the signature value, an unsigned attribute) and
-`Tspex.verify_at_stamp/2` (the signature and its certificate, judged as of the
-stamp). For the content, see `Tspex.content_time_stamp_attribute/1`.
+`Tspex.verify_signature_at_time_stamp/2` (the signature and its certificate,
+judged as of the stamp). For the content, see `Tspex.content_time_stamp_attribute/1`.
 For a document kept with a chain of time-stamps in one file, see
 `Tspex.TimeStampedData`: `verify/2` verifies every token as `Tspex.verify/3`
 does, each against the certificate of its own TSA at its own `genTime`, and the
@@ -243,5 +243,5 @@ first against the document, the others against the element before them. The
 time it returns is that of the first token, and a chain says that each token
 existed when the next was issued. It is experimental: RFC 5544 leaves open what
 the later tokens cover.
-`verify_at_stamp/2` does not check a signature policy; whether this signer was
-allowed to sign this is for the application.
+`verify_signature_at_time_stamp/2` does not check a signature policy; whether
+this signer was allowed to sign this is for the application.

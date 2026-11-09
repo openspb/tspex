@@ -66,8 +66,8 @@ The first release.
   `Tspex.verify_signature_time_stamps/3` (signature time-stamps, CAdES-T);
   `Tspex.content_time_stamp_attribute/1` and
   `Tspex.verify_content_time_stamp/3` (content time-stamps);
-  `Tspex.verify_at_stamp/2`, which verifies a signature and its certificate
-  path as of the time of its stamp.
+  `Tspex.verify_signature_at_time_stamp/2`, which verifies a signature and its
+  certificate path as of the time of its stamp.
 - `Tspex.path_validation_at/2`, for validating a certificate path at a date.
 - Tested against `openssl ts` (OpenSSL 1.1.1 and 3.x, LibreSSL) and the Java
   `jarsigner`, both ways, with a negative corpus and fuzzing of every reader.
