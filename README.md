@@ -132,6 +132,37 @@ attribute = Tspex.content_time_stamp_attribute(stamp)
 {:ok, [_stamp]} = Tspex.verify_content_time_stamp(verified, 0, trust: [tsa_root])
 ```
 
+## A document with a chain of time-stamps
+
+`Tspex.TimeStampedData` (RFC 5544) keeps a document and its time-stamps in
+one file. Each time-stamp covers the one before it, so a new one, from the same
+TSA or from another, can be added later, when an algorithm or a key is about to
+age out. This part is **experimental**: RFC 5544 leaves open which octets the
+later time-stamps cover, and the choice made here is in the module
+documentation.
+
+```elixir
+alias Tspex.TimeStampedData
+
+{:ok, imprint} = TimeStampedData.imprint(contract, file_name: "contract.pdf", hash_protected: true)
+{:ok, first} = Tspex.stamp(imprint, url: "https://tsa.example.com/tsp", trust: [tsa_root])
+{:ok, tsd} = TimeStampedData.new(contract, first, file_name: "contract.pdf", hash_protected: true)
+
+# later: a second time-stamp, over the first element
+{:ok, next} = TimeStampedData.extension_imprint(tsd)
+{:ok, second} = Tspex.stamp(next, url: "https://tsa.example.com/tsp", trust: [tsa_root])
+{:ok, tsd} = TimeStampedData.extend(tsd, second)
+File.write!("contract.pdf.tsd", TimeStampedData.encode(tsd))
+
+{:ok, result} = TimeStampedData.verify(File.read!("contract.pdf.tsd"), trust: [tsa_root])
+result.time
+```
+
+`result.time` is the time of the first time-stamp. Every token is verified
+like `Tspex.verify/3` does, each against the certificate of its own TSA as of
+its own `genTime`. The `dataUri` of a structure that does not carry the
+document is never fetched: give the document as `:content`.
+
 ## Options worth knowing
 
 * `:policies` - the TSA policies you accept; `:policy` in the request asks for one.

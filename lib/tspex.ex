@@ -37,6 +37,8 @@ defmodule Tspex do
       the same for the content.
     * `path_validation_at/2` gives the options to validate a certificate path
       at a date.
+    * `Tspex.TimeStampedData` (experimental) keeps a document with a chain of
+      time-stamps, RFC 5544.
 
   A function returns `{:ok, value}` or `{:error, %Tspex.Error{}}`, and has a
   `!` variant that raises the error. A bad argument raises `ArgumentError`,

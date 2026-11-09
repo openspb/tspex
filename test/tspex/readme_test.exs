@@ -75,6 +75,11 @@ defmodule Tspex.ReadmeTest do
              verify_at_stamp content_time_stamp_attribute verify_content_time_stamp) do
       assert code =~ "Tspex.#{function}(", "no example of Tspex.#{function}"
     end
+
+    for function <- ~w(imprint new extension_imprint extend encode verify) do
+      assert code =~ "TimeStampedData.#{function}(",
+             "no example of TimeStampedData.#{function}"
+    end
   end
 
   test "the examples of the README run, in order, without warnings", %{tmp_dir: dir} do
