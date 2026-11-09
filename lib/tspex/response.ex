@@ -23,6 +23,7 @@ defmodule Tspex.Response do
 
   alias Tspex.{Codec, DER, Error, Options}
 
+  @typedoc "The `PKIStatus` of a response."
   @type status ::
           :granted
           | :granted_with_mods
@@ -31,6 +32,7 @@ defmodule Tspex.Response do
           | :revocation_warning
           | :revocation_notification
 
+  @typedoc "A `PKIFailureInfo` bit; a bit this library does not know is `{:unknown_bit, n}`."
   @type fail_info ::
           :bad_alg
           | :bad_request
@@ -42,6 +44,7 @@ defmodule Tspex.Response do
           | :system_failure
           | {:unknown_bit, non_neg_integer()}
 
+  @typedoc "A `TimeStampResp`: the status, its texts and failure bits, and the token if any."
   @type t :: %__MODULE__{
           status: status(),
           status_text: [String.t()],

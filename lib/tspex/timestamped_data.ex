@@ -75,11 +75,17 @@ defmodule Tspex.TimeStampedData do
   """
   @type element :: %{token: binary(), crl: binary() | nil, raw: binary()}
 
+  @typedoc """
+  The temporal evidence: a chain of time-stamps (`:tst`), the evidence of an
+  archive time-stamp (`:ers`) or another kind, by its OID. Only the first is
+  verified.
+  """
   @type evidence ::
           {:tst, [element(), ...]}
           | {:ers, binary()}
           | {:other, tuple(), binary()}
 
+  @typedoc "A `TimeStampedData` (RFC 5544), experimental."
   @type t :: %__MODULE__{
           version: 1,
           data_uri: String.t() | nil,

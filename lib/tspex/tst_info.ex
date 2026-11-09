@@ -33,10 +33,13 @@ defmodule Tspex.TSTInfo do
 
   alias Tspex.{Codec, DER, Error, Options, Time}
 
+  @typedoc "The name of the TSA, as a `GeneralName`."
   @type name :: Tspex.general_name()
 
+  @typedoc "The accuracy of the `genTime`; a part that the token leaves out is 0."
   @type accuracy :: %{seconds: non_neg_integer(), millis: 0..999, micros: 0..999}
 
+  @typedoc "A `TSTInfo`, the content of a token."
   @type t :: %__MODULE__{
           version: 1,
           policy: tuple(),

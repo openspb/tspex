@@ -24,6 +24,7 @@ defmodule Tspex.Request do
 
   alias Tspex.{Codec, DER, Error, Imprint, Options}
 
+  @typedoc "A `TimeStampReq`: the fields, and `der`, the request as it goes to the TSA."
   @type t :: %__MODULE__{
           der: binary(),
           version: 1,

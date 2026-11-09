@@ -84,6 +84,7 @@ defmodule Tspex.Error do
       reason}`.
   """
 
+  @typedoc "Why an operation failed; each reason is described above."
   @type reason ::
           :malformed
           | :limit_exceeded
@@ -120,6 +121,10 @@ defmodule Tspex.Error do
           | :time_order
           | :transport
 
+  @typedoc """
+  The error: the `reason`, a `detail` that depends on it (or `nil`) and the
+  `cause`, the error of the layer below when there is one.
+  """
   @type t :: %__MODULE__{reason: reason(), detail: term(), cause: Exception.t() | nil}
 
   defexception [:reason, :detail, :cause]

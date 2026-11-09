@@ -32,12 +32,14 @@ defmodule Tspex.Verified do
 
   alias Tspex.TSTInfo
 
+  @typedoc "The certificate of the TSA, its path from the root and the signer of the token."
   @type signer :: %{
           certificate: binary(),
           path: [binary()] | nil,
           signer_info: Cmsex.SignerInfo.t()
         }
 
+  @typedoc "What `Tspex.verify/3` proves; the fields are described above."
   @type t :: %__MODULE__{
           info: TSTInfo.t(),
           token: binary(),
