@@ -29,6 +29,13 @@ All notable changes to this project are documented here. The format follows
 - A token signed with SHA-1 (as the TSA of Apple and the LibreSSL of macOS do)
   is `:weak_algorithm` with `detail: :sha1` and the CMS error as `cause`, not
   `:token_invalid`; `allow_sha1: true` accepts it.
+- `Tspex.verify/3` raised `UnicodeConversionError` when the signing certificate
+  had bytes that are not text in its validity time (the signer wrote the
+  certificate, so it can write that). It is `:bad_tsa_certificate` with
+  `detail: :unreadable`.
+- `Tspex.HTTP.post/3` raised the same error for a `Location` with bytes that are
+  not ASCII when `:max_redirects` allowed following it; such a redirect is not
+  followed. A URL whose host is not valid UTF-8 is an `ArgumentError`.
 
 ## [0.1.0] - not yet published
 

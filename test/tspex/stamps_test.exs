@@ -2,6 +2,7 @@ defmodule Tspex.StampsTest do
   use Tspex.VerifyCase, async: true
 
   alias Cmsex.Attribute
+  alias Tspex.TestFuzz
 
   @old ~U[2020-06-01 12:00:00Z]
   @window [not_before: ~U[2015-01-01 00:00:00Z], not_after: ~U[2060-01-01 00:00:00Z]]
@@ -653,6 +654,56 @@ defmodule Tspex.StampsTest do
 
       assert {:error, %Error{reason: :untrusted}} =
                Tspex.verify_content_time_stamp(verified, 0, trust: [other.root])
+    end
+  end
+
+  # The time-stamp of a signature sits in an unsigned attribute, so anyone
+  # can change its bytes without touching the signature: every reader of it
+  # returns a result or an error for any byte, and never raises.
+  describe "bytes that are not valid" do
+    test "in the signature time-stamp, read with the roots", %{tsa: tsa, pki: pki} do
+      {_cms, stamped} = stamped(tsa, pki)
+      assert {:ok, [_]} = Tspex.verify_signature_time_stamps(stamped, 0, trust: [tsa.root])
+
+      check = &Tspex.verify_signature_time_stamps(&1, 0, trust: [tsa.root])
+      assert TestFuzz.sweep(stamped, check) == []
+    end
+
+    test "in the signature time-stamp, read for its time", %{tsa: tsa, pki: pki} do
+      {_cms, stamped} = stamped(tsa, pki)
+      options = [trust: [pki.root], tsa_trust: [tsa.root]]
+      assert {:ok, [_]} = Tspex.verify_at_stamp(stamped, options)
+
+      assert TestFuzz.sweep(stamped, &Tspex.verify_at_stamp(&1, options)) == []
+    end
+
+    test "in a content time-stamp that the signer signed", %{tsa: tsa, pki: pki} do
+      content = "the content"
+      stamp = content_stamp(tsa, content)
+
+      # The signer signs whatever token it is given, so the token is changed
+      # first and the message is signed around it.
+      check = fn token ->
+        # An attribute holds one DER element: a token that is not one never
+        # gets to the signer, so it is not a case for the reader.
+        attribute =
+          try do
+            Tspex.content_time_stamp_attribute(%{stamp | token: token})
+          rescue
+            ArgumentError -> nil
+          end
+
+        if attribute do
+          cms = sign(as_signer(pki, signed_attributes: [attribute]), content)
+          {:ok, verified} = Cmsex.verify(cms)
+          Tspex.verify_content_time_stamp(verified, 0, trust: [tsa.root])
+        else
+          {:error, %Error{reason: :token_invalid}}
+        end
+      end
+
+      assert {:ok, [_]} = check.(stamp.token)
+      assert TestFuzz.sweep(stamp.token, check) == []
     end
   end
 end

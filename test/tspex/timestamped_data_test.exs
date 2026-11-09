@@ -713,6 +713,16 @@ defmodule Tspex.TimeStampedDataTest do
       end
     end
 
+    test "one byte at a time, for values that are not valid", %{tsa: tsa} do
+      base = tsa |> rich() |> TimeStampedData.encode()
+      options = [max_stamps: 8] ++ trust(tsa)
+      assert {:ok, _} = TimeStampedData.verify(base, options)
+
+      assert TestFuzz.sweep(base, &TimeStampedData.decode(&1, max_stamps: 8)) == []
+      assert TestFuzz.sweep(base, &TimeStampedData.time_stamps(&1, max_stamps: 8)) == []
+      assert TestFuzz.sweep(base, &TimeStampedData.verify(&1, options)) == []
+    end
+
     property "random bytes are refused, never raised on", %{tsa: tsa} do
       check all input <- TestFuzz.random(), max_runs: TestFuzz.rounds(100) do
         assert {:error, %Error{}} = TimeStampedData.decode(input)

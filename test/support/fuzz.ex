@@ -100,6 +100,54 @@ defmodule Tspex.TestFuzz do
 
   defp split(bin, at), do: {binary_part(bin, 0, at), binary_part(bin, at, byte_size(bin) - at)}
 
+  @sweep_values [0x00, 0x30, 0x7F, 0x80, 0xC3, 0xFF]
+
+  @doc """
+  Replaces each byte of `input`, one at a time, by each of a few values (a
+  NUL, a digit, DEL, and three that are not valid as text), runs `fun` on
+  every changed copy and returns `{position, value, what}` for those that
+  went wrong: the exception, or a return value that `:accept` refuses (by
+  default, anything but `{:ok, _}` and `{:error, %Tspex.Error{}}`). An empty
+  list is the pass.
+
+  Options: `:values`, `:accept` (a function of the return value) and
+  `:concurrent` (`true`; `false` when `fun` shares state).
+  """
+  def sweep(input, fun, opts \\ []) do
+    values = Keyword.get(opts, :values, @sweep_values)
+    accept = Keyword.get(opts, :accept, &accepted?/1)
+    one = &at_position(input, &1, {fun, values, accept})
+    positions = 0..(byte_size(input) - 1)
+
+    if Keyword.get(opts, :concurrent, true) do
+      positions
+      |> Task.async_stream(one, ordered: false, timeout: :infinity)
+      |> Enum.flat_map(fn {:ok, found} -> found end)
+    else
+      Enum.flat_map(positions, one)
+    end
+  end
+
+  defp at_position(input, position, {fun, values, accept}) do
+    <<head::binary-size(position), byte, tail::binary>> = input
+
+    for value <- values, value != byte, copy = <<head::binary, value, tail::binary>> do
+      {position, value, run(fn -> fun.(copy) end, accept)}
+    end
+    |> Enum.reject(fn {_position, _value, what} -> what == :ok end)
+  end
+
+  defp accepted?({:ok, _}), do: true
+  defp accepted?({:error, %Tspex.Error{}}), do: true
+  defp accepted?(_), do: false
+
+  defp run(fun, accept) do
+    result = fun.()
+    if accept.(result), do: :ok, else: {:returned, result}
+  rescue
+    exception -> {:raised, exception.__struct__}
+  end
+
   @doc """
   Runs `fun` and returns `:ok` when it gave `{:ok, _}` or `{:error,
   %Tspex.Error{}}`, and otherwise what went wrong (a return value that is
