@@ -50,6 +50,14 @@ defmodule Tspex.Imprint do
     end
   end
 
+  @doc """
+  The size of a digest of `hash`, also for MD5, which is read but never
+  written or accepted.
+  """
+  @spec digest_size(hash() | :md5) :: 16 | 20 | 28 | 32 | 48 | 64
+  def digest_size(:md5), do: 16
+  def digest_size(hash), do: size(hash)
+
   @doc "Whether `digest` is a digest of `hash`: a known hash and the right size."
   @spec valid?(term(), term()) :: boolean()
   def valid?(hash, digest) when is_atom(hash) and is_binary(digest) do
