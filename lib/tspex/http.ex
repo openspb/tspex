@@ -105,7 +105,9 @@ defmodule Tspex.HTTP do
     case URI.parse(url) do
       %URI{scheme: scheme, host: host, userinfo: nil, port: port} = uri
       when scheme in ["http", "https"] and is_binary(host) and host != "" and is_integer(port) ->
-        uri
+        if String.valid?(host),
+          do: uri,
+          else: raise(ArgumentError, "the host of the URL must be valid UTF-8")
 
       _other ->
         raise ArgumentError,
@@ -138,11 +140,15 @@ defmodule Tspex.HTTP do
     end
   end
 
+  # The Location is the server's word: a URI has only visible ASCII (RFC 3986),
+  # so anything else is refused before it is read as a name or written back
+  # into a request line.
   defp redirect_target(uri, location) do
     target = URI.merge(uri, location)
 
-    if target.scheme in ["http", "https"] and is_binary(target.host) and target.host != "" and
-         target.userinfo == nil and not (uri.scheme == "https" and target.scheme == "http"),
+    if Regex.match?(~r/\A[\x21-\x7E]+\z/, location) and target.scheme in ["http", "https"] and
+         is_binary(target.host) and target.host != "" and target.userinfo == nil and
+         not (uri.scheme == "https" and target.scheme == "http"),
        do: {:ok, target},
        else: :error
   rescue

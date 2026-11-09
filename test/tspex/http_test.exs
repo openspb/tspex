@@ -250,6 +250,21 @@ defmodule Tspex.HTTPTest do
       assert {:error, {:http_status, 307}} = HTTP.post(url(port), "q", max_redirects: 1)
     end
 
+    test "does not follow a Location that is not visible ASCII" do
+      for location <- [
+            "http://\xFF/x",
+            "http://a\xC3\x28b/x",
+            "http://localhost/a b",
+            "http://localhost/\x80"
+          ] do
+        port =
+          reply("HTTP/1.1 307 R\r\nlocation: #{location}\r\ncontent-length: 0\r\n\r\n")
+
+        assert {:error, {:http_status, 307}} = HTTP.post(url(port), "q", max_redirects: 1),
+               inspect(location)
+      end
+    end
+
     test "does not send the headers to another host" do
       final = reply(ok("final"))
       other_host = "http://localhost:#{final}/x"
@@ -430,6 +445,8 @@ defmodule Tspex.HTTPTest do
         assert_raise ArgumentError, ~r/URL must be http or https/, fn -> HTTP.post(bad, "q") end
       end
 
+      assert_raise ArgumentError, ~r/valid UTF-8/, fn -> HTTP.post("http://a\xFFb/tsp", "q") end
+      assert_raise ArgumentError, ~r/valid UTF-8/, fn -> HTTP.post("https://\xC3\x28/", "q") end
       assert_raise ArgumentError, fn -> HTTP.post(:not_a_url, "q") end
       assert_raise ArgumentError, fn -> HTTP.post("http://example.com/", :not_a_body) end
     end
