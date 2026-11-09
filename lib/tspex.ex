@@ -5,7 +5,7 @@ defmodule Tspex do
   Work in progress.
   """
 
-  alias Tspex.{Error, Request}
+  alias Tspex.{Error, Request, Response}
 
   @doc """
   Builds a time-stamp request (`TimeStampReq`, RFC 3161, 2.4.1) for `data`.
@@ -54,6 +54,28 @@ defmodule Tspex do
   @doc "Like `decode_request/2`, but raises `Tspex.Error`."
   @spec decode_request!(binary(), keyword()) :: Request.t()
   def decode_request!(der, opts \\ []), do: bang(decode_request(der, opts))
+
+  @doc """
+  Reads a `TimeStampResp` (RFC 3161, 2.4.2) without judging it: a rejection
+  is a valid response, with `status: :rejection`, the reasons in
+  `fail_info` and no token. `verify/3` is what turns a response that is not
+  granted into an error. Takes the limits `:max_size`, `:max_depth` and
+  `:max_nodes`.
+
+      {:ok, response} = Tspex.decode_response(body)
+      response.status       #=> :rejection
+      response.fail_info    #=> [:bad_alg]
+      response.status_text  #=> ["Message digest algorithm is not supported."]
+
+  A `PKIStatus` outside 0 to 5 is `:unknown_status`. A `failInfo` bit that
+  RFC 3161 does not define is read as `{:unknown_bit, n}`.
+  """
+  @spec decode_response(binary(), keyword()) :: {:ok, Response.t()} | {:error, Error.t()}
+  def decode_response(der, opts \\ []), do: Response.decode(der, opts)
+
+  @doc "Like `decode_response/2`, but raises `Tspex.Error`."
+  @spec decode_response!(binary(), keyword()) :: Response.t()
+  def decode_response!(der, opts \\ []), do: bang(decode_response(der, opts))
 
   defp bang({:ok, value}), do: value
   defp bang({:error, error}), do: raise(error)
