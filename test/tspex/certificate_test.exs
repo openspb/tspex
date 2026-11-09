@@ -75,6 +75,18 @@ defmodule Tspex.CertificateTest do
     assert b.not_before == ~U[2050-01-01 00:00:00Z]
   end
 
+  test "the pathLenConstraint of basicConstraints" do
+    parse = fn opts ->
+      {:ok, cert} = Certificate.parse(TestPKI.cert(:p256, opts))
+      cert
+    end
+
+    assert Certificate.path_len(parse.(ca: true, path_len: 0)) == 0
+    assert Certificate.path_len(parse.(ca: true, path_len: 3)) == 3
+    assert Certificate.path_len(parse.(ca: true)) == nil
+    assert Certificate.path_len(parse.([])) == nil
+  end
+
   test "garbage is not a certificate" do
     assert Certificate.parse(<<>>) == :error
     assert Certificate.parse(<<0x30, 0>>) == :error

@@ -127,6 +127,23 @@ defmodule Tspex.PathValidationTest do
       assert PathValidation.check_path([der], @mid) == {:error, :not_valid_at_time}
     end
 
+    test "the pathLenConstraint of the root counts the intermediates, which the OTP does not" do
+      assert check(chain(path_len: 0), today()) == {:error, :path_length_exceeded}
+      assert check(chain(path_len: 1), today()) == :ok
+      assert check(chain(path_len: 5), today()) == :ok
+      assert check(chain([]), today()) == :ok
+    end
+
+    test "a self-issued intermediate does not count against the pathLenConstraint" do
+      {root, [_ca, leaf]} = chain(path_len: 0)
+
+      # A certificate whose subject and issuer are the same name, signed by the root.
+      reissued =
+        TestPKI.cert({:p256, :ca}, ca: true, subject: "Root", issuer: {root, :p256})
+
+      assert PathValidation.check_path([root, reissued, leaf], today()) == :ok
+    end
+
     test "garbage" do
       assert PathValidation.check_path(["nope"], today()) == {:error, :invalid_certificate}
       assert PathValidation.check_path([], today()) == :ok

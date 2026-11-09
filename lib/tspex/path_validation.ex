@@ -35,8 +35,10 @@ defmodule Tspex.PathValidation do
   and sends no event for the extKeyUsage of some CAs, so the callback alone
   cannot decide: here every certificate, the root included, must be valid at
   `time`, and the extKeyUsage of each CA, if it has one, must allow
-  timeStamping (RFC 5280, 4.2.1.12). The reasons are `:not_valid_at_time`,
-  `:eku_excludes_time_stamping` and `:invalid_certificate`.
+  timeStamping (RFC 5280, 4.2.1.12). The pathLenConstraint of the root, which
+  the OTP leaves out, is applied too. The reasons are `:not_valid_at_time`,
+  `:eku_excludes_time_stamping`, `:path_length_exceeded` and
+  `:invalid_certificate`.
   """
   @spec check_path([binary()], DateTime.t()) :: :ok | {:error, atom()}
   def check_path(path, %DateTime{} = time) when is_list(path) do
@@ -50,6 +52,35 @@ defmodule Tspex.PathValidation do
         {:error, _} = error -> {:halt, error}
       end
     end)
+    |> then(fn
+      :ok -> root_path_length(path)
+      error -> error
+    end)
+  end
+
+  # The OTP does not apply the pathLenConstraint of the trust anchor, so the
+  # root is held to it here: the intermediates (the CAs between the root and
+  # the signer that are not self-issued) must not outnumber it.
+  defp root_path_length([root_der | rest]) when rest != [] do
+    with {:ok, root} <- Certificate.parse(root_der),
+         limit when limit != :error <- Certificate.path_len(root) do
+      intermediates = rest |> Enum.drop(-1) |> Enum.count(&(not self_issued?(&1)))
+
+      if limit == nil or intermediates <= limit,
+        do: :ok,
+        else: {:error, :path_length_exceeded}
+    else
+      _ -> {:error, :invalid_certificate}
+    end
+  end
+
+  defp root_path_length(_path), do: :ok
+
+  defp self_issued?(der) do
+    case Certificate.parse(der) do
+      {:ok, cert} -> cert.subject == cert.issuer
+      :error -> false
+    end
   end
 
   defp check_certificate(der, time, ca?) do

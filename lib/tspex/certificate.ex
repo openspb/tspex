@@ -9,6 +9,7 @@ defmodule Tspex.Certificate do
 
   @eku {2, 5, 29, 37}
   @key_usage {2, 5, 29, 15}
+  @basic_constraints {2, 5, 29, 19}
   @san {2, 5, 29, 17}
 
   @type t :: %{
@@ -139,6 +140,39 @@ defmodule Tspex.Certificate do
 
   defp reverse({:ok, list}), do: {:ok, Enum.reverse(list)}
   defp reverse(:error), do: :error
+
+  @doc """
+  The pathLenConstraint of the basicConstraints extension: an integer, `nil`
+  when there is no extension or no constraint, `:error` when it is not valid.
+  """
+  @spec path_len(t()) :: non_neg_integer() | nil | :error
+  def path_len(cert) do
+    case extensions(cert, @basic_constraints) do
+      [] ->
+        nil
+
+      [%{value: value}] ->
+        case DER.decode(value) do
+          {:ok, {0x30, _, _} = seq} -> constraint(DER.children(seq))
+          _ -> :error
+        end
+
+      _ ->
+        :error
+    end
+  end
+
+  defp constraint([{0x01, _, _} | rest]), do: constraint(rest)
+  defp constraint([]), do: nil
+
+  defp constraint([{0x02, _, _} = element]) do
+    case DER.integer(element) do
+      {:ok, n} when n >= 0 -> n
+      _ -> :error
+    end
+  end
+
+  defp constraint(_), do: :error
 
   @doc "The bit positions of the keyUsage extension, `nil` when there is none, `:error` when it is not valid."
   @spec key_usage(t()) :: [non_neg_integer()] | nil | :error
