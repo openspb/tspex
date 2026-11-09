@@ -12,8 +12,13 @@ defmodule Tspex.PathValidation do
   @key_usage {2, 5, 29, 15}
 
   @doc false
-  @spec options_at(DateTime.t(), keyword()) :: keyword()
-  def options_at(%DateTime{} = time, opts) when is_list(opts) do
+  # `purpose` is `:time_stamping` (the path of a TSA: its extKeyUsage must
+  # allow timeStamping) or `:signer` (the path of whoever signed something
+  # that was time-stamped: the date is the only thing that moves).
+  @spec options_at(DateTime.t(), keyword(), :time_stamping | :signer) :: keyword()
+  def options_at(time, opts, purpose \\ :time_stamping)
+
+  def options_at(%DateTime{} = time, opts, purpose) when is_list(opts) do
     Options.unique!(opts)
 
     if Keyword.has_key?(opts, :verify_fun),
@@ -24,10 +29,12 @@ defmodule Tspex.PathValidation do
             "time-stamp; use the :revocation option of verify/3 to check revocation"
         )
 
-    Keyword.put(opts, :verify_fun, {&verify_fun/3, time})
+    fun = if purpose == :signer, do: &signer_verify_fun/3, else: &verify_fun/3
+    Keyword.put(opts, :verify_fun, {fun, time})
   end
 
-  def options_at(_time, _opts), do: raise(ArgumentError, "expected a DateTime and a keyword list")
+  def options_at(_time, _opts, _purpose),
+    do: raise(ArgumentError, "expected a DateTime and a keyword list")
 
   @doc """
   Checks a validated path, root first and the signer last, against the time
@@ -35,19 +42,20 @@ defmodule Tspex.PathValidation do
   and sends no event for the extKeyUsage of some CAs, so the callback alone
   cannot decide: here every certificate, the root included, must be valid at
   `time`, and the extKeyUsage of each CA, if it has one, must allow
-  timeStamping (RFC 5280, 4.2.1.12). The pathLenConstraint of the root, which
-  the OTP leaves out, is applied too. The reasons are `:not_valid_at_time`,
+  timeStamping (RFC 5280, 4.2.1.12), unless `purpose` is `:signer`, the path
+  of an ordinary signer, which has no such rule. The pathLenConstraint of the
+  root, which the OTP leaves out, is applied too. The reasons are `:not_valid_at_time`,
   `:eku_excludes_time_stamping`, `:path_length_exceeded` and
   `:invalid_certificate`.
   """
-  @spec check_path([binary()], DateTime.t()) :: :ok | {:error, atom()}
-  def check_path(path, %DateTime{} = time) when is_list(path) do
+  @spec check_path([binary()], DateTime.t(), :time_stamping | :signer) :: :ok | {:error, atom()}
+  def check_path(path, %DateTime{} = time, purpose \\ :time_stamping) when is_list(path) do
     last = length(path) - 1
 
     path
     |> Enum.with_index()
     |> Enum.reduce_while(:ok, fn {der, index}, :ok ->
-      case check_certificate(der, time, index < last) do
+      case check_certificate(der, time, index < last and purpose == :time_stamping) do
         :ok -> {:cont, :ok}
         {:error, _} = error -> {:halt, error}
       end
@@ -151,6 +159,22 @@ defmodule Tspex.PathValidation do
   def verify_fun(_cert, {:extension, _extension}, time), do: {:unknown, time}
   def verify_fun(_cert, :valid, time), do: {:valid, time}
   def verify_fun(_cert, :valid_peer, time), do: {:valid, time}
+
+  @doc false
+  # The callback for the path of a signer: the date decides, and nothing
+  # here knows what the signer is for, so an extKeyUsage on the leaf is let
+  # through as it is.
+  def signer_verify_fun(cert, {:bad_cert, :cert_expired}, time),
+    do: verify_fun(cert, {:bad_cert, :cert_expired}, time)
+
+  def signer_verify_fun(_cert, {:bad_cert, reason}, _time), do: {:fail, reason}
+
+  def signer_verify_fun(_cert, {:extension, {:Extension, @eku, _, _}}, time),
+    do: {:valid, time}
+
+  def signer_verify_fun(_cert, {:extension, _extension}, time), do: {:unknown, time}
+  def signer_verify_fun(_cert, :valid, time), do: {:valid, time}
+  def signer_verify_fun(_cert, :valid_peer, time), do: {:valid, time}
 
   defp eku_allows({:Extension, @eku, _, oids}, time) do
     oids = List.wrap(oids)

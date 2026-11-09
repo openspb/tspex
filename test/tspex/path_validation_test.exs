@@ -29,6 +29,14 @@ defmodule Tspex.PathValidationTest do
   defp validate({root, path}, time, opts \\ []),
     do: :public_key.pkix_path_validation(root, path, Tspex.path_validation_at(time, opts))
 
+  defp signer_validate({root, path}, time),
+    do:
+      :public_key.pkix_path_validation(
+        root,
+        path,
+        Tspex.PathValidation.options_at(time, [], :signer)
+      )
+
   defp check({root, path}, time), do: PathValidation.check_path([root | path], time)
 
   defp dated(from, to), do: [not_before: from, not_after: to]
@@ -127,6 +135,19 @@ defmodule Tspex.PathValidationTest do
       assert PathValidation.check_path([der], @mid) == {:error, :not_valid_at_time}
     end
 
+    test "for a signer, the extKeyUsage of the CAs is not judged, the dates still are" do
+      path = chain([], eku: [TestPKI.server_auth()])
+      assert check(path, today()) == {:error, :eku_excludes_time_stamping}
+      {root, certs} = path
+      assert PathValidation.check_path([root | certs], today(), :signer) == :ok
+
+      dated_path = chain(dated(@long_ago, ~U[2016-01-01 00:00:00Z]))
+      {root, certs} = dated_path
+
+      assert PathValidation.check_path([root | certs], today(), :signer) ==
+               {:error, :not_valid_at_time}
+    end
+
     test "the pathLenConstraint of the root counts the intermediates, which the OTP does not" do
       assert check(chain(path_len: 0), today()) == {:error, :path_length_exceeded}
       assert check(chain(path_len: 1), today()) == :ok
@@ -147,6 +168,28 @@ defmodule Tspex.PathValidationTest do
     test "garbage" do
       assert PathValidation.check_path(["nope"], today()) == {:error, :invalid_certificate}
       assert PathValidation.check_path([], today()) == :ok
+    end
+  end
+
+  describe "the path of a signer, through the OTP" do
+    test "a critical extKeyUsage on the leaf is let through, whatever it says" do
+      path = chain([], [], eku: [TestPKI.client_auth()])
+      assert {:ok, _} = signer_validate(path, today())
+      assert {:error, {:bad_cert, :eku_excludes_time_stamping}} = validate(path, today())
+    end
+
+    test "the date moves for a signer as it does for a TSA" do
+      path =
+        chain(
+          dated(@long_ago, ~U[2030-01-01 00:00:00Z]),
+          dated(@long_ago, ~U[2021-01-01 00:00:00Z]),
+          dated(@long_ago, ~U[2021-01-01 00:00:00Z])
+        )
+
+      assert {:ok, _} = signer_validate(path, @mid)
+
+      assert {:error, {:bad_cert, :not_valid_at_time}} =
+               signer_validate(path, ~U[2022-01-01 00:00:00Z])
     end
   end
 
