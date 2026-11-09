@@ -26,17 +26,18 @@ defmodule Tspex.Stamps do
 
   ## The signature to stamp
 
-  @spec signature_imprint(binary(), Cmsex.position(), atom()) ::
+  @spec signature_imprint(binary(), Cmsex.position(), keyword()) ::
           {:ok, {:digest, Tspex.hash(), binary()}} | {:error, Error.t()}
-  def signature_imprint(cms, position, hash) do
+  def signature_imprint(cms, position, opts) do
     position!(position)
+    opts = Options.take!(opts, [:hash | @limit_options])
 
-    unless hash in @hashes,
-      do: raise(ArgumentError, "the hash must be one of #{inspect(@hashes)}")
+    unless opts.hash in @hashes,
+      do: raise(ArgumentError, ":hash must be one of #{inspect(@hashes)}")
 
-    with {:ok, signer_info} <- signer_info(cms, position) do
-      {:ok, digest} = Imprint.digest(SignerInfo.signature(signer_info), hash)
-      {:ok, {:digest, hash, digest}}
+    with {:ok, signer_info} <- signer_info(cms, position, Map.to_list(opts)) do
+      {:ok, digest} = Imprint.digest(SignerInfo.signature(signer_info), opts.hash)
+      {:ok, {:digest, opts.hash, digest}}
     end
   end
 
@@ -47,9 +48,11 @@ defmodule Tspex.Stamps do
     Options.unique!(opts)
     if is_binary(stamp), do: Verify.check_options!(opts)
 
-    with {:ok, signer_info} <- signer_info(cms, position),
+    with {:ok, signer_info} <- signer_info(cms, position, opts),
          {:ok, token} <- bound(stamp, SignerInfo.signature(signer_info), opts) do
-      case Cmsex.add_unsigned_attribute(cms, position, Attribute.new(:time_stamp_token, [token])) do
+      attribute = Attribute.new(:time_stamp_token, [token])
+
+      case Cmsex.add_unsigned_attribute(cms, position, attribute, cms_limits(opts)) do
         {:ok, stamped} -> {:ok, stamped}
         {:error, %Cmsex.Error{} = cause} -> {:error, Error.from_cms(:cms_invalid, cause)}
       end
@@ -86,7 +89,7 @@ defmodule Tspex.Stamps do
     position!(position)
     TSTInfo.check_options!(opts)
 
-    with {:ok, signer_info} <- signer_info(cms, position),
+    with {:ok, signer_info} <- signer_info(cms, position, opts),
          do: each_ok(tokens(signer_info), &read_info(&1, opts))
   end
 
@@ -113,7 +116,7 @@ defmodule Tspex.Stamps do
     {mode, opts} = stamps_mode(opts)
     Verify.check_options!(opts)
 
-    with {:ok, signer_info} <- signer_info(cms, position) do
+    with {:ok, signer_info} <- signer_info(cms, position, opts) do
       verify_tokens(tokens(signer_info), {:data, SignerInfo.signature(signer_info)}, mode, opts)
     end
   end
@@ -240,17 +243,19 @@ defmodule Tspex.Stamps do
 
   # The options for Cmsex: the limits of Tspex under the names of Cmsex.
   defp cms_options(opts) do
-    limits = [
-      max_size: opts[:max_size],
+    Keyword.take(opts, [:content, :certificates, :allow_sha1, :min_rsa_bits]) ++
+      cms_limits(opts)
+  end
+
+  defp cms_limits(opts) do
+    [
       max_depth: opts[:max_depth],
       max_elements: opts[:max_nodes],
       max_signers: opts[:max_signers],
       max_certificates: opts[:max_certificates],
       max_attributes: opts[:max_attributes]
     ]
-
-    Keyword.take(opts, [:content, :certificates, :allow_sha1, :min_rsa_bits]) ++
-      Enum.reject(limits, fn {_key, value} -> value == nil end)
+    |> Enum.reject(fn {_key, value} -> value == nil end)
   end
 
   defp at_stamp(cms, index, context) do
@@ -305,16 +310,16 @@ defmodule Tspex.Stamps do
     end
   end
 
-  defp signer_infos(cms) do
-    case Cmsex.decode(cms) do
+  defp signer_infos(cms, opts \\ []) do
+    case Cmsex.decode(cms, cms_limits(opts)) do
       {:ok, %Cmsex.SignedData{signer_infos: infos}} -> {:ok, infos}
       {:ok, _other} -> {:error, Error.new(:cms_invalid, :not_signed_data)}
       {:error, %Cmsex.Error{} = cause} -> {:error, Error.from_cms(:cms_invalid, cause)}
     end
   end
 
-  defp signer_info(cms, position) do
-    with {:ok, infos} <- signer_infos(cms), do: walk(infos, List.wrap(position), position)
+  defp signer_info(cms, position, opts) do
+    with {:ok, infos} <- signer_infos(cms, opts), do: walk(infos, List.wrap(position), position)
   end
 
   defp walk(infos, [index | rest], position) do

@@ -295,17 +295,20 @@ defmodule Tspex do
   digest}`, which `request/2` and `verify/3` take.
 
   `position` is the one of `Cmsex`: an integer for a signer, a list such as
-  `[0, 0]` for the first countersignature of the first signer. `hash` is
-  `:sha256` unless you say another of SHA-2.
+  `[0, 0]` for the first countersignature of the first signer.
 
       {:ok, cms} = Cmsex.sign(content, signer)
       {:ok, imprint} = Tspex.signature_imprint(cms, 0)
       request = Tspex.request!(imprint)
+
+  Options: `:hash`, `:sha256` (the default), `:sha224`, `:sha384` or
+  `:sha512`; and the limits `:max_size`, `:max_depth`, `:max_nodes`,
+  `:max_signers`, `:max_certificates` and `:max_attributes`.
   """
-  @spec signature_imprint(binary(), Cmsex.position(), :sha224 | :sha256 | :sha384 | :sha512) ::
+  @spec signature_imprint(binary(), Cmsex.position(), keyword()) ::
           {:ok, {:digest, hash(), binary()}} | {:error, Error.t()}
-  def signature_imprint(cms, position, hash \\ :sha256),
-    do: Tspex.Stamps.signature_imprint(cms, position, hash)
+  def signature_imprint(cms, position, opts \\ []),
+    do: Tspex.Stamps.signature_imprint(cms, position, opts)
 
   @doc """
   Adds a time-stamp to the signer at `position` as an unsigned attribute

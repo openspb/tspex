@@ -70,7 +70,7 @@ defmodule Tspex.StampsTest do
       assert {:ok, {:digest, :sha256, digest}} = Tspex.signature_imprint(cms, 0)
       assert digest == :crypto.hash(:sha256, signature)
 
-      assert {:ok, {:digest, :sha384, digest}} = Tspex.signature_imprint(cms, 0, :sha384)
+      assert {:ok, {:digest, :sha384, digest}} = Tspex.signature_imprint(cms, 0, hash: :sha384)
       assert digest == :crypto.hash(:sha384, signature)
     end
 
@@ -90,8 +90,8 @@ defmodule Tspex.StampsTest do
       assert_raise ArgumentError, fn -> Tspex.signature_imprint(cms, -1) end
       assert_raise ArgumentError, fn -> Tspex.signature_imprint(cms, []) end
       assert_raise ArgumentError, fn -> Tspex.signature_imprint(cms, "0") end
-      assert_raise ArgumentError, fn -> Tspex.signature_imprint(cms, 0, :sha1) end
-      assert_raise ArgumentError, fn -> Tspex.signature_imprint(cms, 0, :md5) end
+      assert_raise ArgumentError, fn -> Tspex.signature_imprint(cms, 0, hash: :sha1) end
+      assert_raise ArgumentError, fn -> Tspex.signature_imprint(cms, 0, hash: :md5) end
     end
 
     test "something that is not a SignedData" do
@@ -191,6 +191,25 @@ defmodule Tspex.StampsTest do
     test "the signer that is not there", %{pki: pki} do
       cms = sign(as_signer(pki))
       assert failure(Tspex.signature_time_stamps(cms, 3)) == {:signer_not_found, 3}
+    end
+
+    test "more stamps than the default limit need the limit raised", %{tsa: tsa, pki: pki} do
+      cms = sign(as_signer(pki))
+      token = stamp(tsa, cms, 0)
+      raised = [max_attributes: 100]
+
+      many =
+        Enum.reduce(1..70, cms, fn _, acc ->
+          {:ok, next} = Tspex.add_signature_time_stamp(acc, 0, token, raised)
+          next
+        end)
+
+      assert reason(Tspex.signature_time_stamps(many, 0)) == :cms_invalid
+      assert {:ok, infos} = Tspex.signature_time_stamps(many, 0, raised)
+      assert length(infos) == 70
+      assert {:ok, imprint} = Tspex.signature_imprint(many, 0, raised)
+      assert {:ok, ^imprint} = Tspex.signature_imprint(cms, 0)
+      assert reason(Tspex.signature_imprint(many, 0)) == :cms_invalid
     end
   end
 
