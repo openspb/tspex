@@ -368,7 +368,11 @@ defmodule Tspex.Verify do
 
   defp same_nonce?(_a, _b), do: false
 
-  defp pad(n), do: String.pad_leading(:binary.encode_unsigned(n), @nonce_width, <<0>>)
+  # The bytes of a nonce are not text: String functions must not touch them.
+  defp pad(n) do
+    bytes = :binary.encode_unsigned(n)
+    <<0::size(max(@nonce_width - byte_size(bytes), 0) * 8), bytes::binary>>
+  end
 
   defp policy(info, expected, opts) do
     accepted = Enum.map(opts.policies, &Options.oid!(&1, ":policies"))

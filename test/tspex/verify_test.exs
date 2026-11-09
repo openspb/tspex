@@ -129,6 +129,18 @@ defmodule Tspex.VerifyTest do
       assert {:ok, %{status: :granted}} = verify(tsa, response, {:data, "contract"})
     end
 
+    test "a nonce is compared as bytes, whatever they are", %{tsa: tsa} do
+      for nonce <- [0xA9EF, 0xFFFE, 0xC0, 0x80_80_80, 0xF0_9F_98, 1, 0xFF_FF_FF_FF_FF_FF_FF_FF] do
+        {request, response} = issue(tsa, nonce: nonce)
+        assert {:ok, verified} = verify(tsa, response, request), inspect(nonce)
+        assert verified.info.nonce == nonce
+      end
+
+      {request, _} = issue(tsa, nonce: 0xA9EF)
+      {_, other} = issue(tsa, nonce: 0xA9EE)
+      assert reason(verify(tsa, other, request)) == :nonce_mismatch
+    end
+
     test "a token of another query, as if it were fresh, is a nonce mismatch", %{tsa: tsa} do
       {_, response} = issue(tsa)
       other = Tspex.request!("contract")
