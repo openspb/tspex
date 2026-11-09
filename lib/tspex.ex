@@ -98,6 +98,36 @@ defmodule Tspex do
   @spec decode_token!(binary(), keyword()) :: TSTInfo.t()
   def decode_token!(token, opts \\ []), do: bang(decode_token(token, opts))
 
+  @doc """
+  The options for the `:path_validation` of `Cmsex.verify/2` (and of the
+  `:path_validation` option of `verify/3`) that make the OTP validate a
+  certificate path at `time` instead of now.
+
+  `:public_key.pkix_path_validation/3` has no date option and judges a
+  certificate by the clock of today, so a token made in 2024 stops
+  validating when the certificate of the TSA expires, and a critical
+  `extKeyUsage` of a TSA never validates. The `:verify_fun` that comes with
+  the options decides the validity of every certificate of the path, the
+  root included, by `time`, and lets an `extKeyUsage` through if it holds
+  `id-kp-timeStamping` or `anyExtendedKeyUsage`; the OTP does the rest of
+  RFC 5280, 6.1. Your own `:verify_fun` is refused (`ArgumentError`): check
+  revocation with the `:revocation` option of `verify/3`.
+
+  Notes that matter:
+
+    * Validating at a date is not checking revocation at that date.
+    * The root is held to the same rule as the others: one that had expired
+      at `time` is refused, one that expires later is accepted. RFC 5280,
+      6.1 does not look at the validity of a trust anchor, so this is
+      stricter.
+    * A CA whose `extKeyUsage` lacks `timeStamping` and
+      `anyExtendedKeyUsage` is refused (`:eku_excludes_time_stamping`).
+    * A CA with an `extKeyUsage` and no `keyUsage` makes the OTP raise on
+      some versions; `Cmsex.verify/2` reports it as `:untrusted`.
+  """
+  @spec path_validation_at(DateTime.t(), keyword()) :: keyword()
+  def path_validation_at(time, opts \\ []), do: Tspex.PathValidation.options_at(time, opts)
+
   defp bang({:ok, value}), do: value
   defp bang({:error, error}), do: raise(error)
 end
