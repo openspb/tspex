@@ -149,6 +149,101 @@ defmodule Tspex do
   @spec path_validation_at(DateTime.t(), keyword()) :: keyword()
   def path_validation_at(time, opts \\ []), do: Tspex.PathValidation.options_at(time, opts)
 
+  @doc """
+  Verifies a time-stamp response or token and returns what it proves.
+
+  `input` is the whole `TimeStampResp` (what the TSA sent) or the token
+  alone (the `ContentInfo`, as kept in a file or an attribute). The second
+  argument says what was time-stamped:
+
+    * a `Tspex.Request` (**fresh**): the response to that request. The
+      nonce and the policy of the request are checked, and so is its
+      imprint.
+    * `{:data, binary}`, `{:stream, enumerable}` or `{:digest, hash,
+      digest}` (**stored**): a token kept for later. The data is hashed with
+      the algorithm the token itself declares, if it is allowed. There is no
+      nonce to compare, and a nonce in the token is only information.
+
+  ## What `{:ok, verified}` promises
+
+  The token is a `SignedData` with one signer who signed the `TSTInfo`; the
+  certificate that signed is the one the signing-certificate attribute
+  names and is a certificate of a time-stamping authority (a critical
+  `extKeyUsage` with `id-kp-timeStamping`); its chain leads to one of the
+  `:trust` roots, **judged at the `genTime` and not today**, so a token stays
+  valid after the certificate of the TSA expires; the imprint is that of the
+  data, and in fresh mode the nonce is that of the request.
+
+  ## What it does not promise
+
+    * That the TSA is honest or its clock right: `:trust` is your decision
+      and `genTime` is the word of the TSA.
+    * That the certificate of the TSA was **not revoked**: without
+      `:revocation` the result says `revocation: :not_checked`.
+    * That the stamp will keep proving anything for ever: keys and
+      algorithms age.
+    * That the stamped signature or document is valid.
+
+  ## Options
+
+    * `:trust` - **required**: a list of root certificates in DER, or
+      `:none`, which gives up checking the chain: the result then says
+      `trust: :none` and `signer.path` is `nil`, and the token proves only
+      that some key signed this imprint.
+    * `:certificates` - certificates in DER to find the TSA and the
+      intermediates in, tried before those of the token (needed when the
+      request had `cert_req: false`).
+    * `:input` - `:auto` (the default), `:response` or `:token`.
+    * `:policies` - the TSA policies you accept (OIDs as tuples or text);
+      none accepts any. A policy in the request must always be the one of
+      the token.
+    * `:tsa_name` - `:strict` (the default) checks the `tsa` field against
+      the names of the certificate; `:ignore` does not.
+    * `:tsa_eku` - `:strict` (the default): the `extKeyUsage` is critical,
+      written once, and holds only timeStamping; `:extra_purposes` allows
+      other purposes next to it.
+    * `:critical_extensions` - `:reject` (the default) or `:ignore` an
+      unknown critical extension of the `TSTInfo`.
+    * `:granted_with_mods` - `:accept` (the default) or `:reject` status 1.
+    * `:max_skew` - seconds of difference allowed between the `genTime` and
+      the local clock, plus the accuracy; `nil` (the default) does not look
+      at the clock. `:now` replaces the clock, for tests.
+    * `:revocation` - `fun.(path, gen_time)` returning `:ok` or `{:error,
+      reason}`, called with the validated path (root first, TSA last, in
+      DER) after everything else passed. An error is `:untrusted` with
+      `{:revocation, reason}`. RFC 3161, section 4: a revocation for
+      `keyCompromise` or without a reason invalidates every token of the
+      key; any other reason only those made after the revocation.
+    * `:allow_sha1` (`false`), `:min_rsa_bits` (2048) - as in `Cmsex`; MD5
+      is never accepted.
+    * `:path_validation` - options for `:public_key.pkix_path_validation/3`,
+      except `:verify_fun`.
+    * `:max_size` (1 MiB), `:max_depth`, `:max_nodes` and the limits of
+      `Cmsex.decode/2`.
+
+  ## The order of the checks
+
+  Size and form; status and `failInfo`; the token; `SignedData` and the type
+  of its content; one signer; the version of the `TSTInfo`; the signature
+  (`:token_invalid`); the signing-certificate attribute; the rules for the
+  certificate of a TSA (`:bad_tsa_certificate`); the chain to the roots at
+  the `genTime` (`:untrusted`); the imprint; the nonce; the policy; the `tsa`
+  name; critical extensions; the clock; `:revocation`. The error is the
+  first one that fails, and the rules for the certificate come before the
+  chain so that a certificate that is not for time-stamping is reported as
+  such and not as an error of the OTP.
+
+  Errors are `{:error, %Tspex.Error{}}`; a bad argument raises
+  `ArgumentError` without showing the data.
+  """
+  @spec verify(binary(), Request.t() | tuple(), keyword()) ::
+          {:ok, Tspex.Verified.t()} | {:error, Error.t()}
+  def verify(input, expected, opts), do: Tspex.Verify.verify(input, expected, opts)
+
+  @doc "Like `verify/3`, but raises `Tspex.Error`."
+  @spec verify!(binary(), Request.t() | tuple(), keyword()) :: Tspex.Verified.t()
+  def verify!(input, expected, opts), do: bang(verify(input, expected, opts))
+
   defp bang({:ok, value}), do: value
   defp bang({:error, error}), do: raise(error)
 end
