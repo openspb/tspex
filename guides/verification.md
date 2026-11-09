@@ -57,6 +57,126 @@ why two things below are yours.
    algorithms hold. For decades, stamp again (an archive time-stamp, outside
    this library) before they weaken.
 
+## A revocation check from CRLs you hold
+
+The library does not go to the network, but `:revocation` is where you plug
+what you have. This module turns CRLs you already fetched (DER, the CRL of
+each issuer in the path) into that function. It follows RFC 3161, section 4:
+a certificate revoked for `keyCompromise` or without a reason voids every
+token of its key, and one revoked for another reason voids only the tokens
+made at or after the revocation date.
+
+```elixir
+defmodule MyApp.TsaRevocation do
+  @crl_reason {2, 5, 29, 21}
+  @voids_every_token [:unspecified, :keyCompromise, :cACompromise]
+
+  @doc "The `:revocation` function of `Tspex.verify/3`, from CRLs in DER."
+  def check(crls, now \\ DateTime.utc_now()) do
+    fn path, gen_time -> path_ok(path, gen_time, crls, now) end
+  end
+
+  # The path is root first. The root is a trust anchor and has no CRL here.
+  defp path_ok(path, gen_time, crls, now) do
+    path
+    |> Enum.chunk_every(2, 1, :discard)
+    |> Enum.find_value(:ok, fn [issuer, certificate] ->
+      case certificate_ok(issuer, certificate, gen_time, crls, now) do
+        :ok -> nil
+        {:error, _} = error -> error
+      end
+    end)
+  end
+
+  defp certificate_ok(issuer, certificate, gen_time, crls, now) do
+    {:OTPCertificate, tbs, _, _} = :public_key.pkix_decode_cert(certificate, :otp)
+    serial = elem(tbs, 2)
+
+    # a CRL counts only if the issuer signed it
+    case Enum.find(crls, &:public_key.pkix_crl_verify(&1, issuer)) do
+      nil -> {:error, :no_crl}
+      crl -> in_crl(:public_key.der_decode(:CertificateList, crl), serial, gen_time, now)
+    end
+  end
+
+  defp in_crl({:CertificateList, tbs, _, _}, serial, gen_time, now) do
+    {:TBSCertList, _, _, _, this_update, next_update, revoked, _} = tbs
+
+    cond do
+      DateTime.compare(to_datetime(this_update), now) == :gt ->
+        {:error, :crl_not_yet_valid}
+
+      next_update != :asn1_NOVALUE and DateTime.compare(to_datetime(next_update), now) != :gt ->
+        {:error, :crl_expired}
+
+      true ->
+        revoked_at(revoked, serial, gen_time)
+    end
+  end
+
+  defp revoked_at(:asn1_NOVALUE, _serial, _gen_time), do: :ok
+
+  defp revoked_at(revoked, serial, gen_time) do
+    case List.keyfind(revoked, serial, 1) do
+      nil ->
+        :ok
+
+      {_, _, date, extensions} ->
+        if reason(extensions) in @voids_every_token or
+             DateTime.compare(to_datetime(date), gen_time) != :gt,
+           do: {:error, :revoked},
+           else: :ok
+    end
+  end
+
+  defp reason(:asn1_NOVALUE), do: :unspecified
+
+  defp reason(extensions) do
+    case List.keyfind(extensions, @crl_reason, 1) do
+      {:Extension, _, _, value} -> :public_key.der_decode(:CRLReason, value)
+      nil -> :unspecified
+    end
+  end
+
+  defp to_datetime({:utcTime, [y1, y2 | rest]}) do
+    year = List.to_integer([y1, y2])
+
+    to_datetime(
+      {:generalTime, Integer.to_charlist(if(year >= 50, do: 1900, else: 2000) + year) ++ rest}
+    )
+  end
+
+  defp to_datetime({:generalTime, chars}) do
+    <<y::binary-4, mo::binary-2, d::binary-2, h::binary-2, mi::binary-2, s::binary-2, "Z">> =
+      List.to_string(chars)
+
+    DateTime.new!(
+      Date.new!(String.to_integer(y), String.to_integer(mo), String.to_integer(d)),
+      Time.new!(String.to_integer(h), String.to_integer(mi), String.to_integer(s)),
+      "Etc/UTC"
+    )
+  end
+end
+```
+
+Use it with the CRLs you hold:
+
+```elixir
+Tspex.verify(token, {:data, document},
+  trust: roots,
+  revocation: MyApp.TsaRevocation.check([intermediate_crl, root_crl])
+)
+```
+
+What it does not do: it does not fetch anything, it reads no delta CRL, no
+indirect CRL and no CRL split by distribution point, and it asks for a CRL
+that is current **now** (`now`), not at the `genTime`, because what you want to
+know is whether the key has been revoked since. A path with no CRL for one of
+its issuers is `{:error, :no_crl}` and the token is refused, so give a CRL for
+every issuer in the path. For OCSP, or for CRLs by distribution point, the
+OTP has `:public_key.pkix_crls_validate/3` and `:public_key.pkix_ocsp_validate/5`,
+and the function you give can call them.
+
 ## Checks, in order
 
 Size and form; status and `failInfo`; the token; the `SignedData` and the

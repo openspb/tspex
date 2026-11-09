@@ -147,6 +147,49 @@ defmodule Tspex.TestPKI do
   defp label({name, tag}), do: "Test #{name} #{tag}"
   defp label(name), do: "Test #{name}"
 
+  @doc """
+  A CRL in DER, issued by the certificate `issuer_der` and signed with its key
+  `issuer_key_name`. Options:
+
+    * `:revoked` - a list of `{serial, revoked_at}` or `{serial, revoked_at,
+      reason}`, with the reason as the number of CRLReason (1 keyCompromise,
+      4 superseded, 5 cessationOfOperation); no reason writes no extension.
+    * `:this_update` - a day ago; `:next_update` - in a week, `nil` for none.
+  """
+  def crl(issuer_der, issuer_key_name, opts \\ []) do
+    {:ok, root} = DER.decode(issuer_der)
+    [tbs | _] = DER.children(root)
+    issuer = tbs_fields(tbs).issuer_raw_subject
+    {sig_alg, sign_fun} = cert_signature(key(issuer_key_name))
+
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+    this_update = Keyword.get(opts, :this_update, DateTime.add(now, -86_400))
+    next_update = Keyword.get(opts, :next_update, DateTime.add(now, 7 * 86_400))
+
+    revoked =
+      for entry <- Keyword.get(opts, :revoked, []) do
+        {serial, at, reason} =
+          if tuple_size(entry) == 2, do: Tuple.insert_at(entry, 2, nil), else: entry
+
+        extensions =
+          if reason,
+            do: [{:seq, [ext({2, 5, 29, 21}, {:raw, <<0x0A, 1, reason>>})]}],
+            else: []
+
+        {:seq, [{:int, serial}, {:time, at}] ++ extensions}
+      end
+
+    tbs =
+      DER.encode(
+        {:seq,
+         [{:int, 1}, sig_alg, {:raw, issuer}, {:time, this_update}] ++
+           if(next_update, do: [{:time, next_update}], else: []) ++
+           if(revoked == [], do: [], else: [{:seq, revoked}])}
+      )
+
+    DER.encode({:seq, [{:raw, tbs}, sig_alg, {:bits, sign_fun.(tbs)}]})
+  end
+
   @doc "A Name with the country, the organization and the common name."
   def name_term(cn, type \\ :utf8) do
     {:seq,
