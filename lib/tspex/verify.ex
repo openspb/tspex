@@ -246,9 +246,16 @@ defmodule Tspex.Verify do
   defp signature(token, opts) do
     case Cmsex.verify(token, cms_options(opts)) do
       {:ok, %Cmsex.Verified{signers: [signer]}} -> {:ok, signer}
-      {:error, %Cmsex.Error{} = cause} -> {:error, Error.from_cms(:token_invalid, cause)}
+      {:error, %Cmsex.Error{} = cause} -> {:error, cms_error(cause)}
     end
   end
+
+  # A signature made with SHA-1 (or MD5) is refused the way an imprint made
+  # with it is, so that `allow_sha1` is what the error points to.
+  defp cms_error(%Cmsex.Error{reason: :weak_algorithm} = cause),
+    do: Error.from_cms(:weak_algorithm, cause)
+
+  defp cms_error(%Cmsex.Error{} = cause), do: Error.from_cms(:token_invalid, cause)
 
   # RFC 3161, 2.4.2 and RFC 5816: the signing certificate attribute is
   # required. `Cmsex.verify/2` has checked that it names the signer, when it
@@ -287,7 +294,7 @@ defmodule Tspex.Verify do
         {:error, Error.from_cms(:untrusted, cause)}
 
       {:error, %Cmsex.Error{} = cause} ->
-        {:error, Error.from_cms(:token_invalid, cause)}
+        {:error, cms_error(cause)}
     end
   end
 

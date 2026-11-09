@@ -36,7 +36,8 @@ defmodule Tspex.Error do
       not `id-ct-TSTInfo`.
     * `:signer_count` - no signer, or more than one.
     * `:token_invalid` - the CMS layer refused the token; `detail` and
-      `cause` say why (signature, algorithm, attributes, certificate).
+      `cause` say why (signature, attributes, certificate). A signature made
+      with SHA-1 or MD5 is `:weak_algorithm`, not this.
     * `:signing_certificate_missing` - neither ESSCertID nor ESSCertIDv2.
     * `:bad_tsa_certificate` - the certificate is not one a TSA may use;
       `detail` is `:eku_missing`, `:eku_not_critical`, `:eku_extra_purposes`,
@@ -55,7 +56,9 @@ defmodule Tspex.Error do
     * `:critical_extension` - an extension of the `TSTInfo` that is critical
       and unknown.
     * `:gen_time_skew` - `:max_skew` exceeded.
-    * `:weak_algorithm` - MD5, or SHA-1 without `allow_sha1: true`.
+    * `:weak_algorithm` - MD5, or SHA-1 without `allow_sha1: true`, in the
+      imprint or in the signature of the token (some TSAs sign with SHA-1:
+      `detail` is `:sha1`, and `cause` is the error of the CMS layer).
 
   Signature and content time-stamps:
 

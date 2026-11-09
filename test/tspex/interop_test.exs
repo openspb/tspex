@@ -89,6 +89,26 @@ defmodule Tspex.InteropTest do
             end
           end
 
+          if tool == :libressl do
+            test "a token signed with SHA-1 is refused unless allowed", %{tmp_dir: dir} do
+              found = unquote(Macro.escape(found))
+              tsa = Interop.make_tsa(found, dir, :rsa)
+              request = Tspex.request!(@data)
+              response = Interop.reply(found, dir, request.der)
+
+              assert {:error, %Tspex.Error{reason: :weak_algorithm, detail: :sha1, cause: cause}} =
+                       Tspex.verify(response, request, trust: [tsa.root])
+
+              assert %Cmsex.Error{reason: :weak_algorithm} = cause
+
+              assert {:error, %Tspex.Error{reason: :weak_algorithm}} =
+                       Tspex.verify(response, request, trust: :none)
+
+              assert {:ok, %{trust: :validated}} =
+                       Tspex.verify(response, request, trust: [tsa.root], allow_sha1: true)
+            end
+          end
+
           test "a policy it does not offer is a rejection that Tspex reads", %{tmp_dir: dir} do
             found = unquote(Macro.escape(found))
             tsa = Interop.make_tsa(found, dir, :rsa)

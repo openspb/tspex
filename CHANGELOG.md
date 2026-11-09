@@ -16,6 +16,12 @@ All notable changes to this project are documented here. The format follows
   are read and written, not verified.
 - The error reasons `:content_missing` and `:unexpected_content`.
 
+### Fixed
+
+- A token signed with SHA-1 (as the TSA of Apple and the LibreSSL of macOS do)
+  is `:weak_algorithm` with `detail: :sha1` and the CMS error as `cause`, not
+  `:token_invalid`; `allow_sha1: true` accepts it.
+
 ## [0.1.0] - not yet published
 
 The first release.
