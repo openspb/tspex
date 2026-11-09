@@ -30,11 +30,14 @@ signature operations.
 * Every reader returns `{:error, %Tspex.Error{}}` for input it cannot read and
   does not raise on it. The fuzz tests feed changed and random bytes to the
   readers (`decode_request/2`, `decode_response/2`, `decode_token/2`,
-  `verify/3`) and to the functions that read time-stamps from a CMS message.
+  `verify/3`), to the functions that read time-stamps from a CMS message and
+  to `Tspex.TimeStampedData.decode/2` and `verify/2`.
 * Parsing is bounded: `:max_size` (1 MiB), `:max_depth` (32) and `:max_nodes`
   (100,000), and the limits of cmsex for the message that carries a token.
   Every length is checked against the input before it is read, and nothing
-  is allocated from a declared length.
+  is allocated from a declared length. A `TimeStampedData` has one more
+  limit, `:max_stamps` (64), for the length of its chain; each token in it is
+  read under the same limits.
 * Nothing from the input becomes an atom. Unknown algorithms, policies and
   extensions are reported by their OID, as a tuple.
 * The result keeps the input binary alive: copy with `:binary.copy/1` what
@@ -88,6 +91,12 @@ signature operations.
 * That the stamped document or signature is valid, or that the signer was
   authorized to sign. `verify_at_stamp/2` checks a signature and its
   certificate path at the time of the stamp, not a signature policy.
+* For a `TimeStampedData` (experimental): that the choice of what the second
+  and later tokens cover is the one other implementations make. RFC 5544 does
+  not say, and this library reads it as the whole previous element. It does not
+  check the `crl` of an element (`verify/2` returns it), and it does not check
+  that the time grows along the chain. The evidence of an archive time-stamp
+  (`ersEvidence`) and other evidence are read and written but not verified.
 * Unsigned attributes are not protected by the signature. A time-stamp in
   one is verified against the signature value it claims to cover, and a
   stamp that is not about that signature is `:imprint_mismatch`; anyone can
@@ -112,6 +121,9 @@ signature operations.
 * `http` works, since many TSAs are served that way, and the hash of your
   data goes in the clear. The answer is verified just the same, but anyone
   on the path learns that you stamp that hash.
+* A `TimeStampedData` can carry a `dataUri`. It is never fetched, by this
+  library or on any path: the document is given as `:content`, so a
+  structure cannot make the verifier open a connection.
 * Nothing is retried and nothing is cached. Header names and values given in
   `:headers` are checked, so that a value cannot write another header.
 * Request nonces are 63 bits from `:crypto.strong_rand_bytes/1`. An answer
