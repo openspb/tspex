@@ -97,7 +97,13 @@ defmodule Tspex.Certificate do
 
   defp datetime(_year, _rest), do: :error
 
-  defp all_digits?(text), do: text != "" and Enum.all?(String.to_charlist(text), &(&1 in ?0..?9))
+  # By bytes: the text comes from the certificate and is not always UTF-8.
+  defp all_digits?(<<>>), do: false
+  defp all_digits?(text), do: only_digits?(text)
+
+  defp only_digits?(<<>>), do: true
+  defp only_digits?(<<c, rest::binary>>) when c in ?0..?9, do: only_digits?(rest)
+  defp only_digits?(_), do: false
 
   defp extensions([]), do: {:ok, []}
   defp extensions([{0xA1, _, _}, {0xA2, _, _}, {0xA3, _, _} = tagged]), do: extensions([tagged])

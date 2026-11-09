@@ -334,7 +334,12 @@ defmodule Tspex.Options do
     end
   end
 
-  defp digits?(text), do: text != "" and Enum.all?(String.to_charlist(text), &(&1 in ?0..?9))
+  defp digits?(<<>>), do: false
+  defp digits?(text), do: only_digits?(text)
+
+  defp only_digits?(<<>>), do: true
+  defp only_digits?(<<c, rest::binary>>) when c in ?0..?9, do: only_digits?(rest)
+  defp only_digits?(_), do: false
 
   @doc "Whether `value` is an OID as a tuple: two or more arcs, the first at most 2."
   @spec oid?(term()) :: boolean()

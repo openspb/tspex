@@ -296,6 +296,25 @@ defmodule Tspex.VerifyCertificatesTest do
     end
   end
 
+  describe "a certificate the signer wrote" do
+    # The signer is its own judge of the certificate it brings: it signs a
+    # certificate whose validity is not text, and names it in the ESSCertID.
+    test "a validity time that is not text is an unreadable certificate" do
+      tsa = TestTSA.new()
+      [head, tail] = :binary.split(tsa.cert, <<0x17, 0x0D>>)
+      <<_::binary-size(2), rest::binary>> = tail
+
+      for bad <- [<<0xFF, 0xFE>>, <<0xC3, 0x28>>, "ab"] do
+        forged = %{tsa | cert: head <> <<0x17, 0x0D>> <> bad <> rest}
+        {request, response} = issue(forged, [], ess: :v2, ess_issuer_serial: false)
+
+        assert failure(verify(tsa, response, request)) ==
+                 {:bad_tsa_certificate, :unreadable},
+               inspect(bad)
+      end
+    end
+  end
+
   describe "the signing certificate attribute" do
     test "neither ESSCertID nor ESSCertIDv2" do
       tsa = TestTSA.new()

@@ -52,6 +52,8 @@ defmodule Tspex.OptionsTest do
           [policy: {1}],
           [policy: {3, 1}],
           [policy: "1.x"],
+          [policy: "1.2.\xFF"],
+          [policy: "\xC3\x28"],
           [policy: 7],
           [trust: []],
           [trust: [:atom]],

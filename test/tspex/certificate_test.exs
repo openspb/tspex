@@ -75,6 +75,30 @@ defmodule Tspex.CertificateTest do
     assert b.not_before == ~U[2050-01-01 00:00:00Z]
   end
 
+  test "a validity time with bytes that are not digits, or not text, is unreadable" do
+    der = TestPKI.cert(:p256, not_before: ~U[2024-01-01 00:00:00Z])
+    assert {:ok, _} = Certificate.parse(der)
+
+    # The first UTCTime is notBefore, written as 13 octets.
+    [head, tail] = :binary.split(der, <<0x17, 0x0D>>)
+
+    for bad <- [<<0xFF, 0xFE>>, <<0xC3, 0x28>>, <<0x80, 0x80>>, "ab", "9a", "1 ", "\0\0"] do
+      <<_::binary-size(2), rest::binary>> = tail
+      assert Certificate.parse(head <> <<0x17, 0x0D>> <> bad <> rest) == :error, inspect(bad)
+    end
+
+    # The same in the middle of the text, and in a GeneralizedTime.
+    <<year::binary-size(2), _::binary-size(2), rest::binary>> = tail
+    assert Certificate.parse(head <> <<0x17, 0x0D>> <> year <> <<0xFF, 0xFE>> <> rest) == :error
+
+    late = TestPKI.cert(:p256, not_before: ~U[2051-01-01 00:00:00Z])
+    [head, tail] = :binary.split(late, <<0x18, 0x0F>>)
+    <<_::binary-size(4), rest::binary>> = tail
+
+    assert Certificate.parse(head <> <<0x18, 0x0F>> <> <<0xFF, 0xFE, 0xC3, 0x28>> <> rest) ==
+             :error
+  end
+
   test "the pathLenConstraint of basicConstraints" do
     parse = fn opts ->
       {:ok, cert} = Certificate.parse(TestPKI.cert(:p256, opts))
