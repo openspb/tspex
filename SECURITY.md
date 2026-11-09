@@ -84,7 +84,9 @@ signature operations.
   the validated path and the `genTime`. RFC 3161, section 4: a revocation for
   `keyCompromise`, or without a reason, invalidates every token of that key;
   any other reason only the tokens made after the revocation. A path valid at
-  a date is not a certificate that was good at that date.
+  a date is not a certificate that was good at that date. The guide
+  "What a verified time-stamp means" has a tested recipe that builds this
+  function from CRLs you hold.
 * That the stamp keeps proving anything for ever. Keys and hash algorithms
   age; a time-stamp is evidence for as long as its algorithms hold. Archive
   time-stamps (a stamp over a stamp) are outside this library.

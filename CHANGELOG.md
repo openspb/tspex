@@ -16,6 +16,10 @@ All notable changes to this project are documented here. The format follows
   are read and written, not verified.
 - The error reasons `:content_missing` and `:unexpected_content`.
 
+- A tested recipe in the guide for `:revocation` from CRLs you hold, with the
+  rules of RFC 3161, section 4 (key compromise voids every token; another
+  reason only the tokens made at or after the revocation).
+
 ### Fixed
 
 - A token signed with SHA-1 (as the TSA of Apple and the LibreSSL of macOS do)

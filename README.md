@@ -167,7 +167,8 @@ document is never fetched: give the document as `:content`.
 
 * `:policies` - the TSA policies you accept; `:policy` in the request asks for one.
 * `:max_skew` - seconds the `genTime` may differ from the local clock.
-* `:revocation` - `fun.(path, gen_time)`, called when everything else passed.
+* `:revocation` - `fun.(path, gen_time)`, called when everything else passed;
+  the guide has a recipe that builds it from CRLs.
 * `:allow_sha1` - SHA-1 imprints and signatures are refused by default; some
   TSAs still sign with SHA-1.
 * `:tsa_name` and `:tsa_eku` - `:strict` by default; see `Tspex.verify/3`.

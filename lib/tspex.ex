@@ -253,7 +253,9 @@ defmodule Tspex do
       DER) after everything else passed. An error is `:untrusted` with
       `{:revocation, reason}`. RFC 3161, section 4: a revocation for
       `keyCompromise` or without a reason invalidates every token of the
-      key; any other reason only those made after the revocation.
+      key; any other reason only those made after the revocation. The guide
+      "What a verified time-stamp means" has a recipe that builds this
+      function from CRLs.
     * `:allow_sha1` (`false`), `:min_rsa_bits` (2048) - as in `Cmsex`; MD5
       is never accepted.
     * `:path_validation` - options for `:public_key.pkix_path_validation/3`,
