@@ -66,7 +66,7 @@ defmodule Tspex.MixProject do
     [
       licenses: ["Apache-2.0"],
       links: %{"GitHub" => @source_url},
-      files: ~w(lib mix.exs README.md LICENSE NOTICE CHANGELOG.md SECURITY.md)
+      files: ~w(lib guides mix.exs README.md LICENSE NOTICE CHANGELOG.md SECURITY.md)
     ]
   end
 
@@ -74,7 +74,8 @@ defmodule Tspex.MixProject do
     [
       main: "readme",
       source_ref: "v#{@version}",
-      extras: ["README.md", "CHANGELOG.md"]
+      extras: ["README.md", "guides/verification.md", "SECURITY.md", "CHANGELOG.md"],
+      groups_for_extras: [Guides: ["guides/verification.md"]]
     ]
   end
 end

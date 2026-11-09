@@ -1,8 +1,46 @@
 defmodule Tspex do
   @moduledoc """
-  Time-Stamp Protocol (RFC 3161, RFC 5816) in pure Elixir.
+  Time-Stamp Protocol (RFC 3161, RFC 5816) in pure Elixir: build requests,
+  ask a time-stamping authority (TSA), read the answers, and verify a
+  time-stamp at the date it was issued. It also puts time-stamps in
+  signatures made with `Cmsex`.
 
-  Work in progress.
+  ## Ask and verify
+
+      {:ok, stamp} =
+        Tspex.stamp(File.read!("contract.pdf"),
+          url: "https://tsa.example.com/tsp",
+          trust: [File.read!("tsa-root.crt")]
+        )
+
+      stamp.info.gen_time
+      File.write!("contract.pdf.tst", stamp.token)
+
+  Later, with the document and the token:
+
+      {:ok, stamp} =
+        Tspex.verify(File.read!("contract.pdf.tst"), {:data, File.read!("contract.pdf")},
+          trust: [File.read!("tsa-root.crt")]
+        )
+
+  The functions, by what they do:
+
+    * `request/2`, `decode_request/2`, `decode_response/2` and
+      `decode_token/2` build and read the messages, without judging them.
+    * `verify/3` judges a response or a token; `stamp/2` asks and verifies in
+      one call. Read what `verify/3` promises, and what it does not, before
+      relying on a result.
+    * `signature_imprint/3`, `add_signature_time_stamp/4`,
+      `signature_time_stamps/3`, `verify_signature_time_stamps/3` and
+      `verify_at_stamp/2` time-stamp a signature of a CMS message.
+      `content_time_stamp_attribute/1` and `verify_content_time_stamp/3` do
+      the same for the content.
+    * `path_validation_at/2` gives the options to validate a certificate path
+      at a date.
+
+  A function returns `{:ok, value}` or `{:error, %Tspex.Error{}}`, and has a
+  `!` variant that raises the error. A bad argument raises `ArgumentError`,
+  without showing your data.
   """
 
   alias Tspex.{Error, Request, Response, TSTInfo}
@@ -336,7 +374,7 @@ defmodule Tspex do
   The time-stamps of the signer at `position`, read and not verified: the
   `TSTInfo` of each token of each `id-aa-timeStampToken` attribute, in the
   order of the message. A signer with none gives an empty list. Takes the
-  `:max_size`, `:max_depth` and `:max_nodes` limits.
+  limits of `signature_imprint/3`.
   """
   @spec signature_time_stamps(binary(), Cmsex.position(), keyword()) ::
           {:ok, [TSTInfo.t()]} | {:error, Error.t()}
