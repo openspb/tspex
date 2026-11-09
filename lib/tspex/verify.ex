@@ -52,6 +52,15 @@ defmodule Tspex.Verify do
   @signing_certificate [:signing_certificate, :signing_certificate_v2]
   @nonce_width 40
 
+  @doc false
+  # Checks the options of `verify/3` without verifying anything, for the
+  # functions that verify tokens later.
+  @spec check_options!(keyword()) :: :ok
+  def check_options!(opts) do
+    Options.take!(opts, @options, [:trust])
+    :ok
+  end
+
   @spec verify(binary(), term(), keyword()) :: {:ok, Verified.t()} | {:error, Error.t()}
   def verify(input, expected, opts) do
     opts = Options.take!(opts, @options, [:trust])
@@ -388,9 +397,12 @@ defmodule Tspex.Verify do
   defp accuracy_micros(%{seconds: s, millis: ms, micros: us}),
     do: s * 1_000_000 + ms * 1_000 + us
 
-  defp revocation(_path, _gen_time, %{revocation: nil}), do: {:ok, :not_checked}
+  @doc false
+  @spec revocation([binary()] | nil, DateTime.t(), map()) ::
+          {:ok, :checked | :not_checked} | {:error, Error.t()}
+  def revocation(_path, _gen_time, %{revocation: nil}), do: {:ok, :not_checked}
 
-  defp revocation(path, gen_time, %{revocation: check}) do
+  def revocation(path, gen_time, %{revocation: check}) do
     case check.(path, gen_time) do
       :ok -> {:ok, :checked}
       {:error, reason} -> {:error, Error.new(:untrusted, {:revocation, reason})}

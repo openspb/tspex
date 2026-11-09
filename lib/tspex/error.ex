@@ -59,6 +59,11 @@ defmodule Tspex.Error do
 
   Signature and content time-stamps:
 
+    * `:cms_invalid` - the CMS message that carries the signature could not
+      be read, or its signature did not verify; `detail` and `cause` (a
+      `Cmsex.Error`) say why.
+    * `:signer_not_found` - no signer, or no countersignature, at the
+      position; `detail` is the position.
     * `:no_time_stamp` - the signer has no time-stamp.
     * `:unsupported_evidence` - a `TimeStampedData` with `ersEvidence` or
       `otherEvidence`.
@@ -97,6 +102,8 @@ defmodule Tspex.Error do
           | :critical_extension
           | :gen_time_skew
           | :weak_algorithm
+          | :cms_invalid
+          | :signer_not_found
           | :no_time_stamp
           | :unsupported_evidence
           | :transport
@@ -150,6 +157,8 @@ defmodule Tspex.Error do
   defp describe(:critical_extension, oid), do: "unknown critical extension #{show(oid)}"
   defp describe(:gen_time_skew, _), do: "genTime is too far from the local clock"
   defp describe(:weak_algorithm, a), do: "weak algorithm #{show(a)}"
+  defp describe(:cms_invalid, d), do: "the CMS message does not verify (#{show(d)})"
+  defp describe(:signer_not_found, p), do: "no signer at the position #{show(p)}"
   defp describe(:no_time_stamp, _), do: "no time-stamp to verify"
   defp describe(:unsupported_evidence, _), do: "unsupported temporal evidence"
   defp describe(:transport, d), do: "transport error (#{show(d)})"

@@ -244,6 +244,145 @@ defmodule Tspex do
   @spec verify!(binary(), Request.t() | tuple(), keyword()) :: Tspex.Verified.t()
   def verify!(input, expected, opts), do: bang(verify(input, expected, opts))
 
+  ## Time-stamps inside a CMS message
+
+  @doc """
+  The imprint to time-stamp a signature: the hash of the signature value of
+  the signer at `position` (RFC 3161, appendix A), as `{:digest, hash,
+  digest}`, which `request/2` and `verify/3` take.
+
+  `position` is the one of `Cmsex`: an integer for a signer, a list such as
+  `[0, 0]` for the first countersignature of the first signer. `hash` is
+  `:sha256` unless you say another of SHA-2.
+
+      {:ok, cms} = Cmsex.sign(content, signer)
+      {:ok, imprint} = Tspex.signature_imprint(cms, 0)
+      request = Tspex.request!(imprint)
+  """
+  @spec signature_imprint(binary(), Cmsex.position(), :sha224 | :sha256 | :sha384 | :sha512) ::
+          {:ok, {:digest, hash(), binary()}} | {:error, Error.t()}
+  def signature_imprint(cms, position, hash \\ :sha256),
+    do: Tspex.Stamps.signature_imprint(cms, position, hash)
+
+  @doc """
+  Adds a time-stamp to the signer at `position` as an unsigned attribute
+  (`id-aa-timeStampToken`), and returns the new message. The signature does
+  not change, since the attribute is not signed, and the signer may have
+  several stamps, from different TSAs.
+
+  `stamp` is a `t:Tspex.Verified.t/0` or a token in DER. The imprint has to
+  be the hash of that signer's signature (`:imprint_mismatch` otherwise:
+  a stamp of another signature must not pass). A token in DER is verified
+  first with `opts`, which are those of `verify/3` and need `:trust`; a
+  `Tspex.Verified` is taken to have been verified already.
+  """
+  @spec add_signature_time_stamp(
+          binary(),
+          Cmsex.position(),
+          Tspex.Verified.t() | binary(),
+          keyword()
+        ) ::
+          {:ok, binary()} | {:error, Error.t()}
+  def add_signature_time_stamp(cms, position, stamp, opts \\ []),
+    do: Tspex.Stamps.add_signature_time_stamp(cms, position, stamp, opts)
+
+  @doc """
+  The time-stamps of the signer at `position`, read and not verified: the
+  `TSTInfo` of each token of each `id-aa-timeStampToken` attribute, in the
+  order of the message. A signer with none gives an empty list. Takes the
+  `:max_size`, `:max_depth` and `:max_nodes` limits.
+  """
+  @spec signature_time_stamps(binary(), Cmsex.position(), keyword()) ::
+          {:ok, [TSTInfo.t()]} | {:error, Error.t()}
+  def signature_time_stamps(cms, position, opts \\ []),
+    do: Tspex.Stamps.signature_time_stamps(cms, position, opts)
+
+  @doc """
+  Verifies the time-stamps of the signer at `position` against its
+  signature value, with the options of `verify/3` (`:trust` is required and
+  names the roots of the TSAs) and:
+
+    * `:stamps` - `:all` (the default) fails with the first stamp that does
+      not verify; `:any` returns those that did, and fails with the first
+      error only when none did.
+
+  No time-stamp is `:no_time_stamp`.
+
+  This says when the signature existed. It does not check the signature
+  itself or the certificate of the signer: see `verify_at_stamp/2`.
+  """
+  @spec verify_signature_time_stamps(binary(), Cmsex.position(), keyword()) ::
+          {:ok, [Tspex.Verified.t()]} | {:error, Error.t()}
+  def verify_signature_time_stamps(cms, position, opts),
+    do: Tspex.Stamps.verify_signature_time_stamps(cms, position, opts)
+
+  @doc """
+  The attribute for a content time-stamp (`id-aa-ets-contentTimestamp`,
+  RFC 5126, 5.11.4), from a `Tspex.Verified` whose imprint is the hash of the
+  content that is to be signed. It is a *signed* attribute, so the token has
+  to exist before the signature:
+
+      {:ok, verified} = Tspex.verify(response, request, trust: tsa_roots)
+      attribute = Tspex.content_time_stamp_attribute(verified)
+      signer = %{certificate: cert, key: key, signed_attributes: [attribute]}
+      {:ok, cms} = Cmsex.sign(content, signer)
+  """
+  @spec content_time_stamp_attribute(Tspex.Verified.t()) :: Cmsex.Attribute.t()
+  def content_time_stamp_attribute(verified),
+    do: Tspex.Stamps.content_time_stamp_attribute(verified)
+
+  @doc """
+  Verifies the content time-stamp of the signer with index `index` of a
+  message that `Cmsex.verify/2` has verified. The imprint has to be the hash
+  of the content that the signature covers; for a detached message give
+  `content:` (data, as in `request/2`), for one that carries its content
+  the content is taken from `verified`.
+
+  Takes the options of `verify/3` (`:trust` is required) and `:stamps`, as
+  `verify_signature_time_stamps/3`. A signer with no such attribute is
+  `:no_time_stamp`.
+  """
+  @spec verify_content_time_stamp(Cmsex.Verified.t(), non_neg_integer(), keyword()) ::
+          {:ok, [Tspex.Verified.t()]} | {:error, Error.t()}
+  def verify_content_time_stamp(verified, index, opts),
+    do: Tspex.Stamps.verify_content_time_stamp(verified, index, opts)
+
+  @doc """
+  Verifies a signature as it was at the time of its time-stamp, which is
+  how a signature outlives the certificate of its signer: for each signer,
+  the signature time-stamps are verified, the earliest `genTime` among them
+  is taken, and the signature and the certificate path of the signer are
+  verified *at that time*.
+
+  Returns `{:ok, [%{signer: signer, stamps: [verified], time: time}]}`, one
+  entry per signer, where `signer` is as in `Cmsex.Verified` and `time` the
+  earliest `genTime`. A signer without a verified time-stamp is
+  `:no_time_stamp`: this never falls back to today's date (use
+  `Cmsex.verify/2` for that).
+
+  Options:
+
+    * `:trust` (required) - the roots of the signer's certificates.
+    * `:tsa_trust` - the roots of the TSAs (the value of `:trust`).
+    * `:stamps` - `:all` or `:any`, as in `verify_signature_time_stamps/3`.
+    * `:revocation` - `fn path, time -> :ok | {:error, reason} end`, called
+      with the path of the signer and the time of the stamp.
+    * `:content`, `:certificates`, `:allow_sha1`, `:min_rsa_bits`,
+      `:path_validation` - for the signature, as in `Cmsex.verify/2`.
+    * `:policies`, `:tsa_name`, `:tsa_eku`, `:critical_extensions` - for the
+      stamps, as in `verify/3`.
+    * the limits `:max_size`, `:max_depth`, `:max_nodes`, `:max_signers`,
+      `:max_certificates` and `:max_attributes`.
+
+  What this proves is that the signature is older than the time-stamp, and
+  that the certificate was valid then. It does not say that the signer was
+  authorized to sign: the signature policy of a profile such as CAdES is not
+  checked here. Validating at a date is not checking revocation at that date
+  (see `path_validation_at/2`).
+  """
+  @spec verify_at_stamp(binary(), keyword()) :: {:ok, [map()]} | {:error, Error.t()}
+  def verify_at_stamp(cms, opts), do: Tspex.Stamps.verify_at_stamp(cms, opts)
+
   defp bang({:ok, value}), do: value
   defp bang({:error, error}), do: raise(error)
 end

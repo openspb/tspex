@@ -105,6 +105,13 @@ defmodule Tspex.TSTInfo do
   ## Reading a token
 
   @doc false
+  @spec check_options!(keyword()) :: :ok
+  def check_options!(opts) do
+    Options.take!(opts, @read_options)
+    :ok
+  end
+
+  @doc false
   # The ContentInfo of a token, and the TSTInfo inside it, without checking
   # signatures. Returns the SignedData too, for the verification.
   @spec read_token(binary(), keyword() | map()) ::
