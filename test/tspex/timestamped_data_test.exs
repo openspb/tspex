@@ -6,6 +6,8 @@ defmodule Tspex.TimeStampedDataTest do
 
   @content "the contract, as bytes"
   @oid {1, 2, 840, 113_549, 1, 9, 16, 1, 31}
+  # Inside the validity of the test certificates, which start a day ago.
+  @start DateTime.utc_now() |> DateTime.add(-3 * 3600) |> DateTime.truncate(:second)
 
   setup_all do
     %{tsa: TestTSA.new(), other: TestTSA.new(tag: :other_tsa, root_tag: :other_root)}
@@ -435,6 +437,77 @@ defmodule Tspex.TimeStampedDataTest do
                )
              ) ==
                {:untrusted, {:revocation, :revoked}}
+    end
+
+    # A chain whose tokens have the times given (seconds from a start time).
+    defp timed_chain(tsa, offsets) do
+      time = fn offset -> DateTime.add(@start, offset) end
+      [first | rest] = offsets
+
+      {:ok, imprint} = TimeStampedData.imprint(@content)
+
+      {:ok, tsd} =
+        TimeStampedData.new(@content, token(tsa, imprint, gen_time: time.(first)), trust(tsa))
+
+      Enum.reduce(rest, tsd, fn offset, acc ->
+        {:ok, next} = TimeStampedData.extension_imprint(acc)
+
+        {:ok, acc} =
+          TimeStampedData.extend(acc, token(tsa, next, gen_time: time.(offset)), trust(tsa))
+
+        acc
+      end)
+    end
+
+    test "a chain in time order says so", %{tsa: tsa} do
+      for offsets <- [[0], [0, 60], [0, 0, 0], [0, 10, 3600]], max <- [nil, 0, 30] do
+        tsd = timed_chain(tsa, offsets)
+
+        assert {:ok, %{ordered: true}} =
+                 TimeStampedData.verify(tsd, [max_time_back: max] ++ trust(tsa))
+      end
+    end
+
+    test "a token earlier than the one before it is reported, and refused past the limit", %{
+      tsa: tsa
+    } do
+      tsd = timed_chain(tsa, [100, 70, 200])
+
+      # no limit: the chain is read and says it is not in order
+      assert {:ok, %{ordered: false, time: time}} = TimeStampedData.verify(tsd, trust(tsa))
+      assert time == DateTime.add(@start, 100)
+
+      # 30 seconds back: within 30 and over
+      assert {:ok, %{ordered: false}} =
+               TimeStampedData.verify(tsd, [max_time_back: 30] ++ trust(tsa))
+
+      assert {:ok, %{ordered: false}} =
+               TimeStampedData.verify(tsd, [max_time_back: 3600] ++ trust(tsa))
+
+      for max <- [0, 29] do
+        assert {:error, %Error{reason: :time_order, detail: 1}} =
+                 TimeStampedData.verify(tsd, [max_time_back: max] ++ trust(tsa))
+      end
+    end
+
+    test "the limit is on the first token that goes back too far", %{tsa: tsa} do
+      tsd = timed_chain(tsa, [100, 90, 200, 100])
+
+      assert {:error, %Error{reason: :time_order, detail: 3}} =
+               TimeStampedData.verify(tsd, [max_time_back: 20] ++ trust(tsa))
+
+      assert {:error, %Error{reason: :time_order, detail: 1}} =
+               TimeStampedData.verify(tsd, [max_time_back: 5] ++ trust(tsa))
+    end
+
+    test "max_time_back is nil or a non-negative number of seconds", %{tsa: tsa} do
+      tsd = chain(tsa, 1)
+
+      for bad <- [-1, 1.5, "10", :infinity] do
+        assert_raise ArgumentError, ~r/max_time_back/, fn ->
+          TimeStampedData.verify(tsd, [max_time_back: bad] ++ trust(tsa))
+        end
+      end
     end
 
     test "time_stamps/2 reads the TSTInfo of each token", %{tsa: tsa} do

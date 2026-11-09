@@ -73,6 +73,9 @@ defmodule Tspex.Error do
     * `:content_missing`, `:unexpected_content` - a `TimeStampedData` that
       does not carry its content and none was given, or that carries it and
       one was given.
+    * `:time_order` - a `TimeStampedData` with a token whose `genTime` is
+      earlier than the one before it by more than `:max_time_back`; `detail`
+      is the position of that token in the chain (the first is 0).
 
   Transport:
 
@@ -114,6 +117,7 @@ defmodule Tspex.Error do
           | :unsupported_evidence
           | :content_missing
           | :unexpected_content
+          | :time_order
           | :transport
 
   @type t :: %__MODULE__{reason: reason(), detail: term(), cause: Exception.t() | nil}
@@ -173,6 +177,9 @@ defmodule Tspex.Error do
 
   defp describe(:unexpected_content, _),
     do: "the structure has its own content, and one was given"
+
+  defp describe(:time_order, position),
+    do: "the time-stamp at position #{show(position)} is earlier than the one before it"
 
   defp describe(:transport, d), do: "transport error (#{show(d)})"
 

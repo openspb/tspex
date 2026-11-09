@@ -46,10 +46,11 @@ defmodule Tspex.TimeStampedData do
     * `ersEvidence` and `otherEvidence` are read and written as bytes, and
       `verify/2` answers `:unsupported_evidence` for them.
     * It does not check the `crl` of an element. `verify/2` returns it, with
-      the stamps, for you to check; `:revocation` is called for each token
-      like in `Tspex.verify/3`.
-    * It does not check that the `genTime` of the tokens grows along the
-      chain.
+      the stamps, for you to check (the guide on verification shows how, with
+      the recipe for revocation); `:revocation` is called for each token like
+      in `Tspex.verify/3`.
+    * It does not refuse a chain whose `genTime` goes back unless you give
+      `:max_time_back`; `:ordered` in the result says whether it did.
     * The token of a time-stamp is only as good as its TSA, as always: read
       `Tspex.verify/3` for what the checks of each token mean.
   """
@@ -92,6 +93,7 @@ defmodule Tspex.TimeStampedData do
 
   @meta_options [:file_name, :media_type, :other_meta_data, :hash_protected]
   @read_options [:max_size, :max_depth, :max_nodes, :max_stamps]
+  @verify_chain_options [:content, :max_time_back]
   @verify_options Verify.options() -- [:input]
 
   ## Building
@@ -492,38 +494,98 @@ defmodule Tspex.TimeStampedData do
   is judged at the `genTime` of its own token.
 
   Options: those of `Tspex.verify/3` (`:trust` is required), the limits of
-  `decode/2`, and `:content`, the document, as a binary or `{:stream,
-  enumerable}`, for a structure that does not carry it. A structure that
-  carries its content and is given `:content` is `:unexpected_content`, and
-  one with neither is `:content_missing`. The `dataUri` is not used.
+  `decode/2`, and:
+
+    * `:content` - the document, as a binary or `{:stream, enumerable}`, for
+      a structure that does not carry it. A structure that carries its
+      content and is given `:content` is `:unexpected_content`, and one with
+      neither is `:content_missing`. The `dataUri` is not used.
+    * `:max_time_back` - how many seconds the `genTime` of a token may be
+      earlier than the one of the token before it. A token covers the
+      element that holds the one before, so it was issued later; if its
+      `genTime` is earlier, one of the two clocks is wrong, or lies. With a
+      number, a token earlier by more than that is `:time_order`; `0` asks
+      for a strictly non-decreasing chain. `nil` (the default) does not
+      refuse: the result says it in `:ordered`. TSAs that are not the same
+      have clocks that differ by seconds, so choose the number knowing which.
 
   Returns `{:ok, result}` with:
 
     * `:time` - the `genTime` of the first token, when the document existed.
     * `:stamps` - the `t:Tspex.Verified.t/0` of each token, in order.
-    * `:crls` - the `crl` of each element in DER, or `nil`. Not checked here.
+    * `:ordered` - `true` when no token has a `genTime` earlier than the
+      one before it (see `:max_time_back`).
+    * `:crls` - the `crl` of each element in DER, or `nil`. Not checked here;
+      the guide on verification shows how to check them with the recipe for
+      revocation.
     * `:meta_data` - the `MetaData`, or `nil`.
 
   Evidence that is not `tstEvidence` is `:unsupported_evidence`.
   """
   @spec verify(t() | binary(), keyword()) :: {:ok, map()} | {:error, Error.t()}
   def verify(tsd_or_der, opts) do
-    opts = Options.take!(opts, [:content | @read_options] ++ @verify_options, [:trust])
+    opts =
+      Options.take!(opts, @verify_chain_options ++ @read_options ++ @verify_options, [:trust])
+
     max_stamps = Map.get(opts, :max_stamps, @default_max_stamps)
+    max_back = max_time_back!(opts)
 
     with {:ok, tsd} <- as_struct(tsd_or_der, Map.to_list(opts) |> Keyword.take(@read_options)),
          {:ok, elements} <- tst_elements(tsd),
          :ok <- chain_length(elements, max_stamps),
          {:ok, content} <- document(tsd, opts[:content]),
          {:ok, stamps} <-
-           chain(elements, first_input(content, tsd.meta_data), token_options(opts)) do
+           chain(elements, first_input(content, tsd.meta_data), token_options(opts)),
+         {:ok, ordered} <- time_order(stamps, max_back) do
       {:ok,
        %{
          time: hd(stamps).info.gen_time,
          stamps: stamps,
+         ordered: ordered,
          crls: Enum.map(elements, & &1.crl),
          meta_data: tsd.meta_data
        }}
+    end
+  end
+
+  defp max_time_back!(opts) do
+    case Map.get(opts, :max_time_back) do
+      nil ->
+        nil
+
+      seconds when is_integer(seconds) and seconds >= 0 ->
+        seconds
+
+      _other ->
+        raise ArgumentError, ":max_time_back must be nil or a non-negative integer of seconds"
+    end
+  end
+
+  # Whether the genTime never goes back along the chain, and, with a limit,
+  # the first token that goes back by more than that.
+  defp time_order(stamps, max_back) do
+    steps =
+      stamps
+      |> Enum.map(& &1.info.gen_time)
+      |> Enum.chunk_every(2, 1, :discard)
+      |> Enum.with_index(1)
+      |> Enum.filter(fn {[before, later], _position} ->
+        DateTime.compare(later, before) == :lt
+      end)
+
+    cond do
+      steps == [] -> {:ok, true}
+      max_back == nil -> {:ok, false}
+      true -> too_far_back(steps, max_back)
+    end
+  end
+
+  defp too_far_back(steps, seconds) do
+    case Enum.find(steps, fn {[before, later], _} ->
+           DateTime.diff(before, later, :microsecond) > seconds * 1_000_000
+         end) do
+      nil -> {:ok, false}
+      {_, position} -> {:error, Error.new(:time_order, position)}
     end
   end
 

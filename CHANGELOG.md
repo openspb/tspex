@@ -14,7 +14,11 @@ All notable changes to this project are documented here. The format follows
   before it, with the `MetaData` under the first token when it is hash
   protected. The `dataUri` is never fetched; `ersEvidence` and other evidence
   are read and written, not verified.
-- The error reasons `:content_missing` and `:unexpected_content`.
+- `TimeStampedData.verify/2` says in `ordered` whether the `genTime` of the
+  tokens ever goes back along the chain, and `:max_time_back` refuses it
+  (`:time_order`) when it goes back by more than the seconds you give.
+- The error reasons `:content_missing`, `:unexpected_content` and
+  `:time_order`.
 
 - A tested recipe in the guide for `:revocation` from CRLs you hold, with the
   rules of RFC 3161, section 4 (key compromise voids every token; another

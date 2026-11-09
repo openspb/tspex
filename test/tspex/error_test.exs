@@ -35,6 +35,7 @@ defmodule Tspex.ErrorTest do
       {:weak_algorithm, :md5},
       {:no_time_stamp, nil},
       {:unsupported_evidence, nil},
+      {:time_order, 1},
       {:transport, {:http_status, 500}}
     ]
 
