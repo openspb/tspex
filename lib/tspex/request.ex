@@ -27,12 +27,12 @@ defmodule Tspex.Request do
   @type t :: %__MODULE__{
           der: binary(),
           version: 1,
-          hash: Codec.hash(),
+          hash: Tspex.hash() | :md5 | tuple(),
           digest: binary(),
           policy: tuple() | nil,
           nonce: pos_integer() | nil,
           cert_req: boolean(),
-          extensions: [Codec.extension()]
+          extensions: [Tspex.extension()]
         }
 
   @enforce_keys [:der, :hash, :digest]

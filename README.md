@@ -7,4 +7,4 @@ Work in progress.
 
 ## License
 
-Apache-2.0. See [LICENSE](LICENSE).
+Apache-2.0: see the `LICENSE` and `NOTICE` files.

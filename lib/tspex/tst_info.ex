@@ -33,14 +33,14 @@ defmodule Tspex.TSTInfo do
 
   alias Tspex.{Codec, DER, Error, Options, Time}
 
-  @type name :: Codec.name()
+  @type name :: Tspex.general_name()
 
   @type accuracy :: %{seconds: non_neg_integer(), millis: 0..999, micros: 0..999}
 
   @type t :: %__MODULE__{
           version: 1,
           policy: tuple(),
-          hash: Codec.hash(),
+          hash: Tspex.hash() | :md5 | tuple(),
           digest: binary(),
           serial: integer(),
           gen_time: DateTime.t(),
@@ -48,7 +48,7 @@ defmodule Tspex.TSTInfo do
           ordering: boolean(),
           nonce: integer() | nil,
           tsa: name() | nil,
-          extensions: [Codec.extension()],
+          extensions: [Tspex.extension()],
           deviations: [atom()]
         }
 

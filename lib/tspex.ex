@@ -7,6 +7,27 @@ defmodule Tspex do
 
   alias Tspex.{Error, Request, Response, TSTInfo}
 
+  @typedoc "A hash algorithm for a message imprint."
+  @type hash :: :sha1 | :sha224 | :sha256 | :sha384 | :sha512
+
+  @typedoc """
+  What a time-stamp is about: the data as a binary, `{:stream, enumerable}`
+  (read once) or `{:digest, hash, digest}` (already computed).
+  """
+  @type data :: binary() | {:stream, Enumerable.t()} | {:digest, hash(), binary()}
+
+  @typedoc "An extension: the OID, whether it is critical and the DER of its value."
+  @type extension :: %{oid: tuple(), critical: boolean(), value: binary()}
+
+  @typedoc "The name of a TSA in the `tsa` field of a token, as a `GeneralName`."
+  @type general_name ::
+          {:directory_name, binary()}
+          | {:dns_name, String.t()}
+          | {:uri, String.t()}
+          | {:rfc822_name, String.t()}
+          | {:ip_address, binary()}
+          | {:other, binary()}
+
   @doc """
   Builds a time-stamp request (`TimeStampReq`, RFC 3161, 2.4.1) for `data`.
 
@@ -34,11 +55,11 @@ defmodule Tspex do
   tool and the Java `jarsigner` do. A bad argument raises `ArgumentError`
   without showing the data.
   """
-  @spec request(Tspex.Imprint.data(), keyword()) :: {:ok, Request.t()}
+  @spec request(data(), keyword()) :: {:ok, Request.t()}
   def request(data, opts \\ []), do: {:ok, Request.build(data, opts)}
 
   @doc "Like `request/2`, but returns the request itself."
-  @spec request!(Tspex.Imprint.data(), keyword()) :: Request.t()
+  @spec request!(data(), keyword()) :: Request.t()
   def request!(data, opts \\ []), do: Request.build(data, opts)
 
   @doc """
