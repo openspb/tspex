@@ -42,6 +42,12 @@ defmodule Tspex.Request do
   @build_options [:hash, :policy, :nonce, :cert_req, :extensions, :allow_sha1]
   @read_options [:max_size, :max_depth, :max_nodes]
 
+  @typep build_option :: :hash | :policy | :nonce | :cert_req | :extensions | :allow_sha1
+
+  @doc false
+  @spec build_options() :: [build_option(), ...]
+  def build_options, do: @build_options
+
   @doc false
   @spec build(Imprint.data(), keyword()) :: t()
   def build(data, opts) do

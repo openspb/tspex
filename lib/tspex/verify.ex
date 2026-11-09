@@ -52,6 +52,32 @@ defmodule Tspex.Verify do
   @signing_certificate [:signing_certificate, :signing_certificate_v2]
   @nonce_width 40
 
+  @typep option ::
+           :trust
+           | :certificates
+           | :input
+           | :policies
+           | :tsa_name
+           | :tsa_eku
+           | :critical_extensions
+           | :granted_with_mods
+           | :max_skew
+           | :now
+           | :revocation
+           | :allow_sha1
+           | :min_rsa_bits
+           | :path_validation
+           | :max_size
+           | :max_depth
+           | :max_nodes
+           | :max_signers
+           | :max_certificates
+           | :max_attributes
+
+  @doc false
+  @spec options() :: [option(), ...]
+  def options, do: @options
+
   @doc false
   # Checks the options of `verify/3` without verifying anything, for the
   # functions that verify tokens later.

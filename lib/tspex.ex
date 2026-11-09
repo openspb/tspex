@@ -244,6 +244,49 @@ defmodule Tspex do
   @spec verify!(binary(), Request.t() | tuple(), keyword()) :: Tspex.Verified.t()
   def verify!(input, expected, opts), do: bang(verify(input, expected, opts))
 
+  @doc """
+  Asks a TSA for a time-stamp of `data` and verifies the answer: `request/2`,
+  the transport, `decode_response/2` and `verify/3` in one call.
+
+      {:ok, verified} =
+        Tspex.stamp(File.read!("contract.pdf"),
+          url: "https://tsa.example.com/tsp",
+          trust: [root_der],
+          policy: "1.2.3.4.5.6"
+        )
+
+      File.write!("contract.pdf.tst", verified.token)
+
+  Takes the options of `request/2` and of `verify/3` (`:trust` is
+  required) and these:
+
+    * `:url` - the address of the TSA; required unless there is a
+      `:transport`.
+    * `:transport` - a function `fun.(url, request_der, options)` that
+      sends the request and returns `{:ok, response_der}` or `{:error,
+      reason}`. The default is `Tspex.HTTP.post/3`. Use your own for a
+      proxy, an HTTP client you already have (Req, Finch, Mint) or a test.
+      `options` is a keyword list with `:headers`, `:timeout`,
+      `:max_redirects`, `:max_response_bytes` and `:ssl`; a `reason` that is
+      not a `Tspex.Error` becomes the `detail` of a `:transport` error.
+    * `:headers`, `:timeout` (30 s for the exchange), `:max_redirects` (0),
+      `:max_response_bytes` (1 MiB) and `:ssl` - see `Tspex.HTTP`.
+    * `:input` - `:response` here, because that is what a TSA answers.
+
+  The error of a TSA that refused is a `:rejection` (or `:waiting` and the
+  like) with the `failInfo` in the `detail`; one of the network is a
+  `:transport` error. Nothing is retried.
+
+  `http` URLs work, with the hash of your data in the clear on the way: see
+  `Tspex.HTTP`.
+  """
+  @spec stamp(data(), keyword()) :: {:ok, Tspex.Verified.t()} | {:error, Error.t()}
+  def stamp(data, opts), do: Tspex.Stamp.stamp(data, opts)
+
+  @doc "Like `stamp/2`, but raises `Tspex.Error`."
+  @spec stamp!(data(), keyword()) :: Tspex.Verified.t()
+  def stamp!(data, opts), do: bang(stamp(data, opts))
+
   ## Time-stamps inside a CMS message
 
   @doc """
